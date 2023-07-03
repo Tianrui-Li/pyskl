@@ -19,6 +19,7 @@ from pyskl.models import build_model
 from pyskl.utils import collect_env, get_root_logger, mc_off, mc_on, test_port
 
 
+# 创建解释器
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a recognizer')
     parser.add_argument('config', help='train config file path')
