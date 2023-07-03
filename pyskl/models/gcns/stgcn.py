@@ -79,6 +79,7 @@ class STGCN(nn.Module):
             self.data_bn = nn.BatchNorm1d(num_person * in_channels * A.size(1))
         elif data_bn_type == 'VC':
             self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
+            # 图节点数
         else:
             self.data_bn = nn.Identity()
 

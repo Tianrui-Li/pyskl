@@ -29,14 +29,13 @@ class SimpleHead(BaseHead):
                  mode='3D',
                  **kwargs):
         super().__init__(num_classes, in_channels, loss_cls, **kwargs)
-
         self.dropout_ratio = dropout
         self.init_std = init_std
         if self.dropout_ratio != 0:
             self.dropout = nn.Dropout(p=self.dropout_ratio)
         else:
             self.dropout = None
-        assert mode in ['3D', 'GCN', '2D']
+        assert mode in ['3D', 'GCN', '2D', 'vit2']
         self.mode = mode
 
         self.in_c = in_channels
@@ -71,12 +70,14 @@ class SimpleHead(BaseHead):
                 x = pool(x)
                 x = x.reshape(N, S, C)
                 x = x.mean(dim=1)
+                # 通道维度被消除，输出二维N、C
             if self.mode == '3D':
                 pool = nn.AdaptiveAvgPool3d(1)
                 if isinstance(x, tuple) or isinstance(x, list):
                     x = torch.cat(x, dim=1)
                 x = pool(x)
                 x = x.view(x.shape[:2])
+                # 输入维度 N, C, D, H, W
             if self.mode == 'GCN':
                 pool = nn.AdaptiveAvgPool2d(1)
                 N, M, C, T, V = x.shape
@@ -86,12 +87,17 @@ class SimpleHead(BaseHead):
                 x = x.reshape(N, M, C)
                 x = x.mean(dim=1)
 
+            if self.mode == 'vit2':
+                # N, M, dim
+                x = x.mean(dim=1)
+
         assert x.shape[1] == self.in_c
         if self.dropout is not None:
             x = self.dropout(x)
 
         cls_score = self.fc_cls(x)
         return cls_score
+        # 输出维度N、num_classes
 
 
 @HEADS.register_module()
@@ -153,4 +159,23 @@ class TSNHead(BaseHead):
                          dropout=dropout,
                          init_std=init_std,
                          mode='2D',
+                         **kwargs)
+
+
+@HEADS.register_module()
+class vit2Head(SimpleHead):
+
+    def __init__(self,
+                 num_classes,
+                 in_channels,
+                 loss_cls=dict(type='CrossEntropyLoss'),
+                 dropout=0.5,
+                 init_std=0.01,
+                 **kwargs):
+        super().__init__(num_classes,
+                         in_channels,
+                         loss_cls=loss_cls,
+                         dropout=dropout,
+                         init_std=init_std,
+                         mode='vit2',
                          **kwargs)
