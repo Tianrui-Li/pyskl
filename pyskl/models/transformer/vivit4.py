@@ -1,4 +1,6 @@
 import torch
+
+from ...utils import Graph
 from torch import nn, einsum, optim
 from einops import rearrange
 from ..builder import BACKBONES
@@ -174,6 +176,7 @@ class Transformer(nn.Module):
 @BACKBONES.register_module()
 class ViViT4(nn.Module):
     def __init__(self,
+                 graph_cfg,
                  clip_size=32,
                  ):
         super().__init__()
@@ -191,6 +194,10 @@ class ViViT4(nn.Module):
         self.num_time = self.clip_size
         self.num_space = self.V
         self.num_patches = self.num_time * self.num_space
+
+        graph = Graph(**graph_cfg)
+        A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
+        self.data_bn = nn.BatchNorm1d(self.in_channels * A.size(1))
 
         # init layers of the classifier
         self._init_layers()
