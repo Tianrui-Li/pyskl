@@ -6,7 +6,6 @@ from torch import Tensor
 from einops import rearrange
 from ...utils import Graph, cache_checkpoint
 from ..builder import BACKBONES
-
 from mmcv.runner import load_checkpoint
 
 
@@ -145,7 +144,7 @@ class ViViT1(nn.Module):
     def forward(self, x):
         N, M, T, V, C = x.size()
         x = x.permute(0, 1, 3, 4, 2).contiguous()
-        # x = self.data_bn(x.view(N * M, V * C, T))
+        x = self.data_bn(x.view(N * M, V * C, T))
         x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M, T * V, C)
 
         # 变为 N * M, T * V, dim
@@ -162,6 +161,7 @@ class ViViT1(nn.Module):
         x = self.st_transformer(x_input)
 
         # 输出为 N * M, 1, dim -> N, M, dim
+        # 只保留二维的0索引向量2,3,4->2,4
         x = x[:, 0].view(N, M, -1)
 
         return x
@@ -204,7 +204,7 @@ class ViViT2(nn.Module):
     def forward(self, x):
         N, M, T, V, C = x.size()
         x = x.permute(0, 1, 3, 4, 2).contiguous()
-        # x = self.data_bn(x.view(N * M, V * C, T))
+        x = self.data_bn(x.view(N * M, V * C, T))
         x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M * T, V, C)
 
         # 维度从 N * M * T, V, C 变为 N * M * T, V, dim
