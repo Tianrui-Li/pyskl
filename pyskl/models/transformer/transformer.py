@@ -51,7 +51,7 @@ class Attention(nn.Module):
         ) if project_out else nn.Identity()
 
     def forward(self, x):
-        b, n, _, h = *x.shape, self.heads
+        b, n, d, h = *x.shape, self.heads
         qkv = self.to_qkv(x).chunk(3, dim=-1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), qkv)
 
@@ -62,7 +62,7 @@ class Attention(nn.Module):
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
         out = self.to_out(out)
-        return out
+        return out  # input dim (b n d), output dim (b n d)
 
 
 class PositionalEncoding(nn.Module):
@@ -83,7 +83,7 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
-def _init_weights(module) -> None:
+def _init_weights(module):
     if isinstance(module, (nn.Linear, nn.Embedding)):
         nn.init.trunc_normal_(module.weight, std=.02)
     elif isinstance(module, (nn.LayerNorm, nn.GroupNorm, nn.BatchNorm2d)):
@@ -119,7 +119,7 @@ class ViViT1(nn.Module):
             in_channels=3,
             dim=192,
             dropout=0.,
-            max_position_embeddings=801,
+            max_position_embeddings=512,
             depth=4,
             heads=3,
             dim_head=64,
@@ -129,6 +129,7 @@ class ViViT1(nn.Module):
         graph = Graph(**graph_cfg)
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
         self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
+
         self.enc_pe = PositionalEncoding(dim, dropout, max_position_embeddings)
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.st_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
@@ -136,9 +137,8 @@ class ViViT1(nn.Module):
 
         self.init_weights()  # initialization
 
-    def init_weights(self) -> None:
-        if self.cls_token is not None:
-            nn.init.trunc_normal_(self.cls_token, std=.02)
+    def init_weights(self):
+        nn.init.trunc_normal_(self.cls_token, std=.02)
         self.apply(_init_weights)
 
     def forward(self, x):
@@ -147,21 +147,20 @@ class ViViT1(nn.Module):
         # x = self.data_bn(x.view(N * M, V * C, T))
         x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M, T * V, C)
 
-        # 变为 N * M, T * V, dim
-        x = self.to_embedding(x)
+        x = self.to_embedding(x)  # output(N*M,T*V,dim)
 
-        # cls为 N * M, 1, dim
+        # cls-token dim (N*M,1,dim)
         cls_st_tokens = self.cls_token.expand(x.size(0), -1, -1)
 
-        # 整体变为 N * M, 1 + T * V, dim
+        # output(N*M,1+T*V,dim)
         x = torch.cat((cls_st_tokens, x), dim=1)
 
-        # 输出为 N * M, 1 + T * V, dim
+        # output (N*M,1+T*V,dim)
         x_input = self.enc_pe(x)
         x = self.st_transformer(x_input)
 
-        # 输出为 N * M, 1, dim -> N, M, dim
-        # 只保留二维的0索引向量2,3,4->2,4
+        # N*M,1,dim ->N,M,dim
+        # 只保留第二维的0索引向量2,3,4->2,4
         x = x[:, 0].view(N, M, -1)
 
         return x
@@ -180,16 +179,16 @@ class ViViT2(nn.Module):
             dropout=0.,
             scale_dim=4,
             max_position_embeddings=512,
-            ):
+    ):
         super().__init__()
         graph = Graph(**graph_cfg)
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
         self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
         self.enc_pe = PositionalEncoding(dim, dropout, max_position_embeddings)
         self.space_token = nn.Parameter(torch.randn(1, 1, dim))
-        self.space_transformer = Transformer(dim, depth, heads, dim_head, dim*scale_dim, dropout)
+        self.space_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
         self.temporal_token = nn.Parameter(torch.randn(1, 1, dim))
-        self.temporal_transformer = Transformer(dim, depth, heads, dim_head, dim*scale_dim, dropout)
+        self.temporal_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
         self.to_embedding = nn.Linear(in_channels, dim)
 
         self.init_weights()  # initialization
@@ -238,7 +237,6 @@ class ViViT2(nn.Module):
         x = x[:, 0].view(N, M, -1)
 
         return x
-
 
 # x = torch.randn(2,6,1,2,3)
 # model = ViViT2()
