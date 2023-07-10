@@ -41,7 +41,7 @@ class SimpleHead(BaseHead):
         self.in_c = in_channels
 
         # 添加了softmax层
-        self.fc_cls = nn.Sequential(nn.LayerNorm(self.in_c),nn.Linear(self.in_c, num_classes), nn.Softmax())
+        self.fc_cls = nn.Sequential(nn.LayerNorm(self.in_c), nn.Linear(self.in_c, num_classes), nn.Softmax())
 
     def init_weights(self):
         """Initiate the parameters from scratch."""
