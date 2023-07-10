@@ -1,17 +1,9 @@
 import torch
 
 from ...utils import Graph
-from torch import nn, einsum, optim
+from torch import nn, einsum
 from einops import rearrange
 from ..builder import BACKBONES
-
-
-def accuracy(y_pred, y_true):
-    n_y = y_true.size(0)
-    idx_predicted = torch.argmax(y_pred, 1)
-    acc = (idx_predicted == y_true).sum().item()
-    acc = acc / float(n_y)
-    return acc
 
 
 class PreNorm(nn.Module):
@@ -35,10 +27,8 @@ class FeedForward(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, dim, heads=8, dim_head=64, dropout=0.0, num_space=None, num_time=None, attn_type=None):
+    def __init__(self, dim, heads=8, dim_head=64, num_space=None, num_time=None, attn_type=None):
         super().__init__()
-
-        assert attn_type in ['space', 'time'], 'Attention type should be one of the following: space, time.'
 
         self.attn_type = attn_type
         self.num_space = num_space
@@ -201,13 +191,6 @@ class ViViT4(nn.Module):
 
         # init layers of the classifier
         self._init_layers()
-
-        # init loss, metric, and optimizer
-        self._loss_fn = nn.CrossEntropyLoss()
-        self._metric_fn = accuracy
-        # self._optimizer = optim.Adam(self.parameters(), 0.001)
-        self._optimizer = optim.SGD(self.parameters(), 0.1)
-
         self.init_weights()  # initialization
 
     def init_weights(self):
