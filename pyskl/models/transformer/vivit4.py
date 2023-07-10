@@ -17,42 +17,52 @@ class PreNorm(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, in_dim, hidden_dim, out_dim, dropout=0.):
+    def __init__(self, dim, hidden_dim, dropout=0.):
         super().__init__()
-        self.net = nn.Sequential(nn.Linear(in_dim, hidden_dim), nn.GELU(), nn.Dropout(dropout),
-                                 nn.Linear(hidden_dim, out_dim), nn.Dropout(dropout))
+        self.net = nn.Sequential(
+            nn.Linear(dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, dim),
+            nn.Dropout(dropout)
+        )
 
     def forward(self, x):
         return self.net(x)
 
 
 class Attention(nn.Module):
-    def __init__(self, dim, heads=8, dim_head=64, dropout=0.0, num_space=None, num_time=None, attn_type=None):
+    def __init__(self, dim, heads=8, dim_head=64, dropout=0., num_space=None, num_time=None, attn_type=None):
         super().__init__()
+
+        inner_dim = dim_head * heads
 
         self.attn_type = attn_type
         self.num_space = num_space
         self.num_time = num_time
 
-        inner_dim = dim_head * heads
-
-        self.scale = dim_head ** -0.5
         self.heads = heads
-
-        self.attend = nn.Softmax(dim=-1)
+        self.scale = dim_head ** -0.5
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=False)
 
+        # self.to_out = nn.Sequential(
+        #     nn.Linear(inner_dim, dim),
+        #     nn.Dropout(dropout))
+
+        self.attend = nn.Softmax(dim=-1)
+
     def forward_attention(self, x):
-        h = self.heads
+        b, n, _, h = *x.shape, self.heads
         qkv = self.to_qkv(x).chunk(3, dim=-1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), qkv)
 
         dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+
         attn = self.attend(dots)
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
-
+        # out = self.to_out(out)
         return out
 
     def forward_space(self, x):
@@ -138,7 +148,8 @@ class Transformer(nn.Module):
 
         inner_dim = dim_head * heads_half * 2
         self.linear = nn.Sequential(nn.Linear(inner_dim, dim), nn.Dropout(dropout))
-        self.mlp = PreNorm(dim, FeedForward(dim, mlp_dim, dim, dropout=dropout))
+        self.mlp = PreNorm(dim, FeedForward(dim, mlp_dim, dropout=dropout))
+        self.norm = nn.LayerNorm(dim)
 
     def forward(self, x):
         # self-attention
@@ -158,53 +169,61 @@ class Transformer(nn.Module):
         # residual for mlp
         out_mlp += out_att
 
-        return out_mlp
+        return self.norm(out_mlp)
 
 
 @BACKBONES.register_module()
 class ViViT4(nn.Module):
-    def __init__(self,
-                 graph_cfg,
-                 clip_size=32,
-                 ):
+    def __init__(
+            self,
+            graph_cfg,
+            clip_size=32,
+            scale_dim=4,
+            heads=3,
+            V=25,
+            dim=192,
+            dim_head=64,
+            dropout_ratio=0.1,
+            depth=4,
+            emb_dropout_ratio=0.1,
+            in_channels=3,
+            ):
         super().__init__()
-        self.scale_dim = 4
-        self.heads = 3
-        self.V = 25
-        self.clip_size = clip_size
-        self.dim = 192
-        self.dim_head = 64
-        self.dropout_ratio = 0.1
-        self.depth = 4
-        self.emb_dropout_ratio = 0.1
-        self.in_channels = 3
+        self.transformers = None
+        self.scale_dim = scale_dim
+        self.heads = heads
+        self.dim = dim
+        self.dim_head = dim_head
+        self.dropout_ratio = dropout_ratio
+        self.depth = depth
+        self.emb_dropout_ratio = emb_dropout_ratio
+        self.in_channels = in_channels
+        self.num_space = V
+        self.num_time = clip_size
+
         self.mlp_dim = self.dim * self.scale_dim
-        self.num_time = self.clip_size
-        self.num_space = self.V
+
         self.num_patches = self.num_time * self.num_space
 
         graph = Graph(**graph_cfg)
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
-        # self.data_bn = nn.BatchNorm1d(self.in_channels * A.size(1))
-
-        # init layers of the classifier
-        self._init_layers()
-        self.init_weights()  # initialization
-
-    def init_weights(self):
-        self.apply(_init_weights)
-
-    def _init_layers(self):
+        self.data_bn = nn.BatchNorm1d(self.in_channels * A.size(1))
 
         self.to_embedding = nn.Linear(self.in_channels, self.dim)
         self.pos_embedding = nn.Parameter(torch.randn(1, self.num_patches, self.dim))
         self.dropout = nn.Dropout(self.emb_dropout_ratio)
+
+        # init layers of the classifier
+        self.init_weights()  # initialization
 
         self.transformers = nn.ModuleList([])
         for _ in range(self.depth):
             self.transformers.append(
                 Transformer(self.dim, self.heads, self.dim_head, self.mlp_dim, self.dropout_ratio, self.num_space,
                             self.num_time))
+
+    def init_weights(self):
+        self.apply(_init_weights)
 
     def forward(self, x):
 
@@ -231,7 +250,7 @@ class ViViT4(nn.Module):
         for transformer in self.transformers:
             x = transformer(x)  # (b, t*v, d)
 
-        x = x.view(N, M*T*V, -1)
+        x = x.view(N, M*T*V, -1).contiguous()
 
         # classification
         # x = x[:, 0]
