@@ -27,7 +27,7 @@ class FeedForward(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, dim, heads=8, dim_head=64, num_space=None, num_time=None, attn_type=None):
+    def __init__(self, dim, heads=8, dim_head=64, dropout=0.0, num_space=None, num_time=None, attn_type=None):
         super().__init__()
 
         self.attn_type = attn_type
@@ -35,26 +35,23 @@ class Attention(nn.Module):
         self.num_time = num_time
 
         inner_dim = dim_head * heads
+
         self.scale = dim_head ** -0.5
         self.heads = heads
 
         self.attend = nn.Softmax(dim=-1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=False)
 
-    def forward(self, x):
+    def forward_attention(self, x):
+        h = self.heads
+        qkv = self.to_qkv(x).chunk(3, dim=-1)
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), qkv)
 
-        t = self.num_time
-        n = self.num_space
+        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        attn = self.attend(dots)
 
-        # reshape to reveal dimensions of space and time
-        x = rearrange(x, 'b (t n) d -> b t n d', t=t, n=n)
-
-        if self.attn_type == 'space':
-            out = self.forward_space(x)  # (b, tn, d)
-        elif self.attn_type == 'time':
-            out = self.forward_time(x)  # (b, tn, d)
-        else:
-            raise Exception('Unknown attention type: %s' % (self.attn_type))
+        out = einsum('b h i j, b h j d -> b h i d', attn, v)
+        out = rearrange(out, 'b h n d -> b n (h d)')
 
         return out
 
@@ -97,16 +94,18 @@ class Attention(nn.Module):
 
         return out
 
-    def forward_attention(self, x):
-        h = self.heads
-        qkv = self.to_qkv(x).chunk(3, dim=-1)
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), qkv)
+    def forward(self, x):
 
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
-        attn = self.attend(dots)
+        t = self.num_time
+        n = self.num_space
 
-        out = einsum('b h i j, b h j d -> b h i d', attn, v)
-        out = rearrange(out, 'b h n d -> b n (h d)')
+        # reshape to reveal dimensions of space and time
+        x = rearrange(x, 'b (t n) d -> b t n d', t=t, n=n)
+
+        if self.attn_type == 'space':
+            out = self.forward_space(x)  # (b, tn, d)
+        else:
+            out = self.forward_time(x)  # (b, tn, d)
 
         return out
 
@@ -127,9 +126,8 @@ class Transformer(nn.Module):
 
         self.num_space = num_space
         self.num_time = num_time
-        heads_half = int(heads / 2.0)
 
-        assert dim % 2 == 0
+        heads_half = int(heads / 2.0)
 
         self.attention_space = PreNorm(dim, Attention(dim, heads=heads_half, dim_head=dim_head, dropout=dropout,
                                                       num_space=num_space, num_time=num_time,
@@ -187,7 +185,7 @@ class ViViT4(nn.Module):
 
         graph = Graph(**graph_cfg)
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
-        self.data_bn = nn.BatchNorm1d(self.in_channels * A.size(1))
+        # self.data_bn = nn.BatchNorm1d(self.in_channels * A.size(1))
 
         # init layers of the classifier
         self._init_layers()
@@ -222,23 +220,18 @@ class ViViT4(nn.Module):
 
         N, M, T, V, C = x.size()
         x = x.permute(0, 1, 3, 4, 2).contiguous()
-        x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M * T, V, C)
-        x = self.to_embedding(x)  # (b*t, n, dim)
-
-        # concat patch token and class token
-        x = rearrange(x, '(b t) n d -> b (t n) d', b=N * M, t=T)  # (b, tn, d)
+        x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M, T * V, C)
+        x = self.to_embedding(x)  # (b,t*v,dim)
 
         # add position embedding
-        x += self.pos_embedding  # (b, tn, d)
-        x = self.dropout(x)  # (b, tn, d)
+        x += self.pos_embedding  # (b, t*v, d)
+        x = self.dropout(x)  # (b, t*v, d)
 
         # layers of transformers
         for transformer in self.transformers:
-            x = transformer(x)  # (b, tn, d)
+            x = transformer(x)  # (b, t*v, d)
 
-        # space-time pooling
-        x = x.mean(dim=1)
-        x = x.view(N, M, -1)
+        x = x.view(N, M*T*V, -1)
 
         # classification
         # x = x[:, 0]
