@@ -4,13 +4,13 @@ model = dict(
         type='ViViT2',
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
         max_position_embeddings_1=26,  # 25*40+1=1001
-        max_position_embeddings_2=41,
+        max_position_embeddings_2=49,
     ),
     cls_head=dict(type='vit2Head', num_classes=60, in_channels=192))
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
-clip_len = 40
+clip_len = 48
 train_pipeline = [
     dict(type='PreNormalize3D'),
     dict(type='GenSkeFeat', dataset='nturgb+d', feats=['j']),
@@ -55,7 +55,7 @@ optimizer = dict(type='SGD', lr=0.001, momentum=0.9, weight_decay=0.0005, nester
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
-total_epochs = 40
+total_epochs = 44
 checkpoint_config = dict(interval=1)
 evaluation = dict(interval=1, metrics=['top_k_accuracy'])
 log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
