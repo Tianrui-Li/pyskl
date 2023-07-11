@@ -3,13 +3,13 @@ model = dict(
     backbone=dict(
         type='ViViT2',
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
-        max_position_embeddings=801,
+        max_position_embeddings=1001,  # 25*40+1=1001
     ),
     cls_head=dict(type='vit2Head', num_classes=60, in_channels=192))
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
-clip_len = 32
+clip_len = 40
 train_pipeline = [
     dict(type='PreNormalize3D'),
     dict(type='GenSkeFeat', dataset='nturgb+d', feats=['j']),
@@ -41,11 +41,11 @@ data = dict(
     videos_per_gpu=16,
     workers_per_gpu=16,
     test_dataloader=dict(videos_per_gpu=1),
-    # train=dict(
-    #     type='RepeatDataset',
-    #     times=5,
-    #     dataset=dict(type=dataset_type, ann_file=ann_file, pipeline=train_pipeline, split='xsub_train')),
-    train=dict(type=dataset_type, ann_file=ann_file, pipeline=train_pipeline, split='xsub_train'),
+    train=dict(
+        type='RepeatDataset',
+        times=2,
+        dataset=dict(type=dataset_type, ann_file=ann_file, pipeline=train_pipeline, split='xsub_train')),
+    # train=dict(type=dataset_type, ann_file=ann_file, pipeline=train_pipeline, split='xsub_train'),
     val=dict(type=dataset_type, ann_file=ann_file, pipeline=val_pipeline, split='xsub_val'),
     test=dict(type=dataset_type, ann_file=ann_file, pipeline=test_pipeline, split='xsub_val'))
 
@@ -54,7 +54,7 @@ optimizer = dict(type='SGD', lr=0.001, momentum=0.9, weight_decay=0.0005, nester
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
-total_epochs = 30
+total_epochs = 40
 checkpoint_config = dict(interval=1)
 evaluation = dict(interval=1, metrics=['top_k_accuracy'])
 log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
@@ -64,4 +64,4 @@ log_level = 'INFO'
 work_dir = './work_dirs/transformer/j2'
 
 auto_resume = False
-seed = 42
+seed = 88

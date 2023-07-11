@@ -183,9 +183,11 @@ class ViViT2(nn.Module):
             max_position_embeddings=512,
     ):
         super().__init__()
+
         graph = Graph(**graph_cfg)
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
         self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
+
         self.enc_pe = PositionalEncoding(dim, dropout, max_position_embeddings)
         self.space_token = nn.Parameter(torch.randn(1, 1, dim))
         self.space_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
@@ -193,9 +195,9 @@ class ViViT2(nn.Module):
         self.temporal_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
         self.to_embedding = nn.Linear(in_channels, dim)
 
-        self.init_weights()  # initialization
+        self.init_weights()
 
-    def init_weights(self) -> None:
+    def init_weights(self):
         if self.space_token is not None:
             nn.init.trunc_normal_(self.space_token, std=.02)
         if self.temporal_token is not None:
