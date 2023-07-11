@@ -32,24 +32,25 @@ class FeedForward(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, dim, heads=8, dim_head=64, dropout=0., num_space=None, num_time=None, attn_type=None):
+    def __init__(self, dim, heads=8, dim_head=64, dropout=0., num_space=25, num_time=32, attn_type=None):
         super().__init__()
-
         inner_dim = dim_head * heads
-
-        self.attn_type = attn_type
-        self.num_space = num_space
-        self.num_time = num_time
+        # project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
         self.scale = dim_head ** -0.5
+
+        self.attend = nn.Softmax(dim=-1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=False)
 
         # self.to_out = nn.Sequential(
         #     nn.Linear(inner_dim, dim),
-        #     nn.Dropout(dropout))
+        #     nn.Dropout(dropout)
+        # )if project_out else nn.Identity()
 
-        self.attend = nn.Softmax(dim=-1)
+        self.attn_type = attn_type
+        self.num_space = num_space
+        self.num_time = num_time
 
     def forward_attention(self, x):
         b, n, _, h = *x.shape, self.heads
@@ -62,7 +63,8 @@ class Attention(nn.Module):
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
-        # out = self.to_out(out)
+
+        # return self.to_out(out)
         return out
 
     def forward_space(self, x):
@@ -149,7 +151,6 @@ class Transformer(nn.Module):
         inner_dim = dim_head * heads_half * 2
         self.linear = nn.Sequential(nn.Linear(inner_dim, dim), nn.Dropout(dropout))
         self.mlp = PreNorm(dim, FeedForward(dim, mlp_dim, dropout=dropout))
-        self.norm = nn.LayerNorm(dim)
 
     def forward(self, x):
         # self-attention
@@ -169,7 +170,33 @@ class Transformer(nn.Module):
         # residual for mlp
         out_mlp += out_att
 
-        return self.norm(out_mlp)
+        return out_mlp
+    # 输出b,t*v,c
+
+
+# class FDATransformer(nn.Module):
+#     def __int__(
+#             self,
+#             dim,
+#             heads,
+#             dim_head,
+#             mlp_dim,
+#             depth,
+#             dropout,
+#             num_space,
+#             num_time,
+#             ):
+#         super().__init__()
+#         self.transformers = nn.ModuleList([])
+#         for _ in range(depth):
+#             self.transformers.append(
+#                 Transformer(dim, heads=heads, dim_head=dim_head, mlp_dim=mlp_dim, dropout=0., num_space=num_space,
+#                             num_time=num_time))
+#
+#     def forward(self, x):
+#         for attn in self.transformers:
+#             x = attn(x)
+#         return x
 
 
 @BACKBONES.register_module()
@@ -189,7 +216,6 @@ class ViViT4(nn.Module):
             in_channels=3,
             ):
         super().__init__()
-        self.transformers = None
         self.scale_dim = scale_dim
         self.heads = heads
         self.dim = dim
@@ -213,14 +239,13 @@ class ViViT4(nn.Module):
         self.pos_embedding = nn.Parameter(torch.randn(1, self.num_patches, self.dim))
         self.dropout = nn.Dropout(self.emb_dropout_ratio)
 
-        # init layers of the classifier
-        self.init_weights()  # initialization
-
         self.transformers = nn.ModuleList([])
         for _ in range(self.depth):
             self.transformers.append(
                 Transformer(self.dim, self.heads, self.dim_head, self.mlp_dim, self.dropout_ratio, self.num_space,
                             self.num_time))
+
+        self.init_weights()
 
     def init_weights(self):
         self.apply(_init_weights)
@@ -239,6 +264,7 @@ class ViViT4(nn.Module):
 
         N, M, T, V, C = x.size()
         x = x.permute(0, 1, 3, 4, 2).contiguous()
+        x = self.data_bn(x.view(N * M, V * C, T))
         x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M, T * V, C)
         x = self.to_embedding(x)  # (b,t*v,dim)
 
@@ -246,16 +272,12 @@ class ViViT4(nn.Module):
         x += self.pos_embedding  # (b, t*v, d)
         x = self.dropout(x)  # (b, t*v, d)
 
-        # layers of transformers
+        # # layers of transformers
         for transformer in self.transformers:
             x = transformer(x)  # (b, t*v, d)
 
-        x = x.view(N, M*T*V, -1).contiguous()
-
-        # classification
-        # x = x[:, 0]
-        # classifier
-        # x = self.mlp_head(x)
+        x = x.view(N, M, T, V, -1).contiguous()
+        x = torch.mean(x, [2, 3])
 
         return x
 

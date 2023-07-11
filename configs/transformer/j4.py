@@ -3,12 +3,13 @@ model = dict(
     backbone=dict(
         type='ViViT4',
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
+        clip_size=48,
     ),
-    cls_head=dict(type='vit2Head', num_classes=60, in_channels=192))
+    cls_head=dict(type='vit2', num_classes=60, in_channels=192))
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
-clip_len = 32
+clip_len = 48
 train_pipeline = [
     dict(type='PreNormalize3D'),
     dict(type='GenSkeFeat', dataset='nturgb+d', feats=['j']),
@@ -63,4 +64,4 @@ log_level = 'INFO'
 work_dir = './work_dirs/transformer/j4'
 
 auto_resume = False
-seed = 42
+seed = 88
