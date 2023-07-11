@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from torch import einsum
 from torch import Tensor
-from einops import rearrange
+from einops import rearrange,repeat
 from ...utils import Graph
 from ..builder import BACKBONES
 
@@ -180,7 +180,8 @@ class ViViT2(nn.Module):
             dim_head=64,
             dropout=0.,
             scale_dim=4,
-            max_position_embeddings=512,
+            max_position_embeddings_1=26,
+            max_position_embeddings_2=41,
     ):
         super().__init__()
 
@@ -188,7 +189,8 @@ class ViViT2(nn.Module):
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
         self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
 
-        self.enc_pe = PositionalEncoding(dim, dropout, max_position_embeddings)
+        self.enc_pe_1 = PositionalEncoding(dim, dropout, max_position_embeddings_1)
+        self.enc_pe_2 = PositionalEncoding(dim, dropout, max_position_embeddings_2)
         self.space_token = nn.Parameter(torch.randn(1, 1, dim))
         self.space_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
         self.temporal_token = nn.Parameter(torch.randn(1, 1, dim))
@@ -220,7 +222,7 @@ class ViViT2(nn.Module):
         x = torch.cat((cls_space_tokens, x), dim=1)
 
         # 输出为 N * M * T, 1+V, dim
-        x_input = self.enc_pe(x)
+        x_input = self.enc_pe_1(x)
 
         # 输出为 N * M * T, 1+V, dim
         x = self.space_transformer(x_input)
@@ -233,6 +235,8 @@ class ViViT2(nn.Module):
 
         # 输出为 N * M, 1+T, dim
         x = torch.cat((cls_temporal_tokens, x), dim=1)
+
+        x = self.enc_pe_2(x)
 
         # 输出为 N * M, 1+T, dim
         x = self.temporal_transformer(x)
