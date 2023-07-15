@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from torch import einsum
 from torch import Tensor
-from einops import rearrange,repeat
+from einops import rearrange
 from ...utils import Graph
 from ..builder import BACKBONES
 
