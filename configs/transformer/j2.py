@@ -5,7 +5,7 @@ model = dict(
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
         max_position_embeddings_1=26,  # 25*40+1=1001
         max_position_embeddings_2=101,
-        # dropout=0.1,
+        dropout=0.1,
         # dim=256,
     ),
     cls_head=dict(type='vit2Head', num_classes=60, in_channels=192))
