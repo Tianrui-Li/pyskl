@@ -1,3 +1,6 @@
+import wandb
+wandb.init(project='ViViT')
+
 model = dict(
     type='RecognizerGCN',
     backbone=dict(
@@ -5,10 +8,10 @@ model = dict(
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
         max_position_embeddings_1=26,  # 25*40+1=1001
         max_position_embeddings_2=101,
-        dropout=0.1,
-        # dim=256,
+        # dropout=0.1,
+        dim=256,
     ),
-    cls_head=dict(type='vit2Head', num_classes=60, in_channels=192))
+    cls_head=dict(type='vit2Head', num_classes=60, in_channels=256))
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
@@ -43,8 +46,8 @@ test_pipeline = [
     dict(type='ToTensor', keys=['keypoint'])
 ]
 data = dict(
-    videos_per_gpu=16,
-    workers_per_gpu=16,
+    videos_per_gpu=32,
+    workers_per_gpu=8,
     test_dataloader=dict(videos_per_gpu=1),
     train=dict(
         type='RepeatDataset',
@@ -66,7 +69,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j2/7.15'
+work_dir = './work_dirs/transformer/j2/7.16'
 
 auto_resume = False
 seed = 88
