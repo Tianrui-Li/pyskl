@@ -2,8 +2,7 @@
 
 export MASTER_PORT=$((12000 + $RANDOM % 20000))
 # for server run
-# export CUDA_VISIBLE_DEVICES=3,4,5
-export CUDA_VISIBLE_DEVICES=1,2,6
+export CUDA_VISIBLE_DEVICES=3,4,5
 
 set -x
 
