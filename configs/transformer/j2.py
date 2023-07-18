@@ -18,7 +18,7 @@ ann_file = 'data/nturgbd/ntu60_3danno.pkl'
 clip_len = 100
 train_pipeline = [
     dict(type='PreNormalize3D'),
-    dict(type='RandomScale', scale=0.1),
+    dict(type='RandomScale', scale=0.2),
     dict(type='RandomRot'),
     # dict(type='RandomRot', theta=0.2),
     dict(type='GenSkeFeat', dataset='nturgb+d', feats=['j']),
@@ -71,7 +71,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j2/7.19-tm-9'
+work_dir = './work_dirs/transformer/j2/7.19-tm-10'
 
 auto_resume = False
 seed = 88
