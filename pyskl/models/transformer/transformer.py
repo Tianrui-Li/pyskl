@@ -146,7 +146,7 @@ class ViViT1(nn.Module):
         N, M, T, V, C = x.size()
         # print(x.size())
         x = x.permute(0, 1, 3, 4, 2).contiguous()
-        # x = self.data_bn(x.view(N * M, V * C, T))
+        x = self.data_bn(x.view(N * M, V * C, T))
         x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M, T * V, C)
 
         x = self.to_embedding(x)  # output(N*M,T*V,dim)
