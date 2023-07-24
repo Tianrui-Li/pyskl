@@ -120,7 +120,8 @@ class ViViT1n (nn.Module):
             in_channels=3,
             dim=192,
             dropout=0.,
-            max_position_embeddings=512,
+            max_position_embeddings_1=401,
+            max_position_embeddings_2=7,
             depth=4,
             heads=3,
             dim_head=64,
@@ -131,12 +132,16 @@ class ViViT1n (nn.Module):
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
         self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
 
-        self.enc_pe = PositionalEncoding(dim, dropout, max_position_embeddings)
+        self.enc_pe_1 = PositionalEncoding(dim, dropout, max_position_embeddings_1)
+        self.enc_pe_2 = PositionalEncoding(dim, dropout, max_position_embeddings_2)
+
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.st_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
         self.to_embedding = nn.Linear(in_channels, dim)
 
         self.init_weights()  # initialization
+
+        self.X = max_position_embeddings_2-1
 
     def init_weights(self):
         nn.init.trunc_normal_(self.cls_token, std=.02)
@@ -147,19 +152,27 @@ class ViViT1n (nn.Module):
         # print(x.size())
         x = x.permute(0, 1, 3, 4, 2).contiguous()
         x = self.data_bn(x.view(N * M, V * C, T))
-        x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M, T * V, C)
+        x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M * self.X, T // self.X * V, C)
 
-        x = self.to_embedding(x)  # output(N*M,T*V,dim)
+        x = self.to_embedding(x)  # output(N*M*6,T/6*V,dim)
 
-        # cls-token dim (N*M,1,dim)
+        # cls-token dim (N*M*6,1,dim)
         cls_st_tokens = self.cls_token.expand(x.size(0), -1, -1)
 
-        # output(N*M,1+T*V,dim)
+        # output (N*M*6,1+T/6*V,dim)
         x = torch.cat((cls_st_tokens, x), dim=1)
 
-        # output (N*M,1+T*V,dim)
-        x_input = self.enc_pe(x)
+        # output (N*M*6,1+T/6*V,dim)
+        x_input = self.enc_pe_1(x)
         x = self.st_transformer(x_input)
+
+        # 提取token，output x (N*M,6,dim)
+        x = x[:, 0].view(N * M, self.X, -1)
+
+        cls_st_tokens_2 = self.cls_token.expand(x.size(0), -1, -1)
+        x = torch.cat((cls_st_tokens_2, x), dim=1)
+        x = self.enc_pe_2(x)
+        x = self.st_transformer(x)  # output(N*M,1+6,dim)
 
         # N*M,1,dim ->N,M,dim
         # 只保留第二维的0索引向量2,3,4->2,4
@@ -167,3 +180,7 @@ class ViViT1n (nn.Module):
 
         return x
 
+# x = torch.randn(2,6,1,2,3)
+# model = ViViT2()
+# output = model.forward(x)
+# print(output.shape)
