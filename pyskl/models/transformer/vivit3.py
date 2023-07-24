@@ -93,13 +93,13 @@ class FSATransformerEncoder(nn.Module):
         x = torch.flatten(x, start_dim=0, end_dim=1)  # NMT,V,C
 
         for sp_attn, temp_attn, ff in self.layers:
-            sp_attn_x = sp_attn(x) + x  # Spatial attention
+            sp_attn_x = sp_attn(x) + x  # Spatial attention # NMT,V,C
 
             # Reshape tensors for temporal attention
-            sp_attn_x = sp_attn_x.chunk(b, dim=0)  # 切割张量块为b个
-            sp_attn_x = [temp[None] for temp in sp_attn_x]
-            sp_attn_x = torch.cat(sp_attn_x, dim=0).transpose(1, 2)
-            sp_attn_x = torch.flatten(sp_attn_x, start_dim=0, end_dim=1)
+            sp_attn_x = sp_attn_x.chunk(b, dim=0)  # 切割张量块为b个，T V C
+            sp_attn_x = [temp[None] for temp in sp_attn_x]  # 1 T V C
+            sp_attn_x = torch.cat(sp_attn_x, dim=0).transpose(1, 2)  # B V T C
+            sp_attn_x = torch.flatten(sp_attn_x, start_dim=0, end_dim=1)  # BV T C
 
             temp_attn_x = temp_attn(sp_attn_x) + sp_attn_x  # Temporal attention
 
@@ -148,9 +148,10 @@ class ViViT3(nn.Module):
 
         self.v = max_position_embeddings_1
         self.t = max_position_embeddings_2
-        self.pos_embedding = nn.Parameter(torch.randn(1, 1, self.v, dim)).repeat(1, self.t, 1, 1)
-        self.pos_embedding = self.pos_embedding.to(torch.device('cuda'))
-
+        # self.pos_embedding = nn.Parameter(torch.randn(1, 1, self.v, dim)).repeat(1, self.t, 1, 1)
+        # self.pos_embedding = self.pos_embedding.to(torch.device('cuda'))
+        self.pos_embedding = nn.Parameter(torch.randn(1, 1, self.v, dim, device=torch.device('cuda'))).repeat(1, self.t,
+                                                                                                              1, 1)
         self.dropout = nn.Dropout(emb_dropout)
 
         self.transformer = FSATransformerEncoder(dim, depth, heads, dim_head, dim * scale_dim, dropout)
@@ -174,7 +175,7 @@ class ViViT3(nn.Module):
         x = self.transformer(tokens)
 
         x = x.mean(dim=1)
-        x = self.to_latent(x)
+        # x = self.to_latent(x)
         x = x.view(N, M, -1)
 
         return x
