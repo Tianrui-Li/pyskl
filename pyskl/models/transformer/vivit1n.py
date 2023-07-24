@@ -180,7 +180,7 @@ class ViViT1n (nn.Module):
 
         return x
 
-# x = torch.randn(2,6,1,2,3)
-# model = ViViT2()
+# x = torch.randn(24,2,96,25,3)
+# model = ViViT1n()
 # output = model.forward(x)
 # print(output.shape)
