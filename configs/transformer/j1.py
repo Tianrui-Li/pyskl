@@ -6,14 +6,14 @@ model = dict(
     backbone=dict(
         type='ViViT1',
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
-        max_position_embeddings=2501,  # 100*25+1=2501，
+        max_position_embeddings=1001,  # 100*25+1=2501，
         dim=256,
     ),
     cls_head=dict(type='vit2Head', num_classes=60, in_channels=256))
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
-clip_len = 100
+clip_len = 40
 train_pipeline = [
     dict(type='PreNormalize3D'),
     dict(type='RandomScale', scale=0.1),
