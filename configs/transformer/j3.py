@@ -6,7 +6,7 @@ model = dict(
     backbone=dict(
         type='ViViT3',
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
-        max_position_embeddings_1=96,
+        max_position_embeddings_2=96,
         dim=256,
     ),
     cls_head=dict(type='vit2Head', num_classes=60, in_channels=256))
