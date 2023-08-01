@@ -41,6 +41,8 @@ class FSAttention(nn.Module):
 
         project_out = not (heads == 1 and dim_head == dim)
 
+        self.attend = nn.Softmax(dim=-1)
+
         self.heads = heads
         self.scale = dim_head ** -0.5
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=False)
@@ -51,13 +53,13 @@ class FSAttention(nn.Module):
         ) if project_out else nn.Identity()
 
     def forward(self, x):
-        b, n, d, h = *x.shape, self.heads
+        b, n, _, h = *x.shape, self.heads
         qkv = self.to_qkv(x).chunk(3, dim=-1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), qkv)
 
         dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
 
-        attn = dots.softmax(dim=-1)
+        attn = self.attend(dots)
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
@@ -109,13 +111,13 @@ class FSATransformerEncoder(nn.Module):
             x = x.chunk(b, dim=0)
             x = [temp[None] for temp in x]
             x = torch.cat(x, dim=0).transpose(1, 2)
-            x = torch.flatten(x, start_dim=0, end_dim=1)
+            x = torch.flatten(x, start_dim=0, end_dim=1)  # BT V C
 
-        # Reshape vector to [b, t*v, dim]
-        x = x.chunk(b, dim=0)
-        x = [temp[None] for temp in x]
-        x = torch.cat(x, dim=0)
-        x = torch.flatten(x, start_dim=1, end_dim=2)
+            # Reshape vector to [b, t*v, dim]
+            x = x.chunk(b, dim=0)
+            x = [temp[None] for temp in x]
+            x = torch.cat(x, dim=0)
+            x = torch.flatten(x, start_dim=1, end_dim=2)
 
         # 输出N*M，T*V，dim
         return x
@@ -142,6 +144,7 @@ class ViViT3(nn.Module):
         graph = Graph(**graph_cfg)
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
         self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
+
         self.to_embedding = nn.Linear(in_channels, dim)
 
         # repeat same spatial position encoding temporally
