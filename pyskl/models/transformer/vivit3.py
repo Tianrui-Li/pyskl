@@ -113,11 +113,11 @@ class FSATransformerEncoder(nn.Module):
             x = torch.cat(x, dim=0).transpose(1, 2)
             x = torch.flatten(x, start_dim=0, end_dim=1)  # BT V C
 
-            # Reshape vector to [b, t*v, dim]
-            x = x.chunk(b, dim=0)
-            x = [temp[None] for temp in x]
-            x = torch.cat(x, dim=0)
-            x = torch.flatten(x, start_dim=1, end_dim=2)
+        # Reshape vector to [b, t*v, dim]
+        x = x.chunk(b, dim=0)
+        x = [temp[None] for temp in x]
+        x = torch.cat(x, dim=0)
+        x = torch.flatten(x, start_dim=1, end_dim=2)
 
         # 输出N*M，T*V，dim
         return x
@@ -177,9 +177,9 @@ class ViViT3(nn.Module):
         tokens = self.dropout(tokens)
         x = self.transformer(tokens)
 
-        x = x.mean(dim=1)
-        # x = self.to_latent(x)
-        x = x.view(N, M, -1)
+        # x = x.mean(dim=1)
+        x = self.to_latent(x)
+        x = x.view(N, M*T*V, -1)
 
         return x
 
