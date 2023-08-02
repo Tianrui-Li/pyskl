@@ -157,10 +157,10 @@ class ViViT3n(nn.Module):
 
         self.v = max_position_embeddings_1
         self.t = max_position_embeddings_2
-        # self.pos_embedding = nn.Parameter(torch.randn(1, 1, self.X * self.v, dim, device=torch.device(
-        # 'cuda'))).repeat(1, self.t // self.X, 1, 1)
+        self.pos_embedding = nn.Parameter(torch.randn(1, 1, self.X * self.v, dim, device=torch.device(
+        'cuda'))).repeat(1, self.t // self.X, 1, 1)
 
-        self.pos_embedding = nn.Parameter(torch.randn(1, 1, self.X * self.v, dim)).repeat(1, self.t // self.X, 1, 1)
+        # self.pos_embedding = nn.Parameter(torch.randn(1, 1, self.X * self.v, dim)).repeat(1, self.t // self.X, 1, 1)
         self.dropout = nn.Dropout(emb_dropout)
 
         self.transformer = FSATransformerEncoder(dim, depth, heads, dim_head, dim * scale_dim, dropout)
