@@ -94,8 +94,12 @@ class FSATransformerEncoder(nn.Module):
         b = x.shape[0]  # NM,T,V,C
         x = torch.flatten(x, start_dim=0, end_dim=1)  # NMT,V,C
 
+        # b, T, V, DIM = x.size()  # NM,T,V,C
+        # x = x.contiguous().view(b * self.X, T // self.X * V, DIM)
+        # output(N*M*n,T//n*V,dim)
+
         for sp_attn, temp_attn, ff in self.layers:
-            sp_attn_x = sp_attn(x) + x  # Spatial attention # NMT,V,C
+            sp_attn_x = sp_attn(x) + x  # Spatial attention # N*M*n,T/n*V,dim
 
             # Reshape tensors for temporal attention
             sp_attn_x = sp_attn_x.chunk(b, dim=0)  # 切割张量块为b个，T V C
@@ -139,6 +143,7 @@ class ViViT3n(nn.Module):
                  scale_dim=4,
                  max_position_embeddings_1=25,
                  max_position_embeddings_2=32,
+                 n=6,
                  ):
         super().__init__()
         graph = Graph(**graph_cfg)
@@ -148,12 +153,13 @@ class ViViT3n(nn.Module):
         self.to_embedding = nn.Linear(in_channels, dim)
 
         # repeat same spatial position encoding temporally
+        self.X = n
 
         self.v = max_position_embeddings_1
         self.t = max_position_embeddings_2
         # self.pos_embedding = nn.Parameter(torch.randn(1, 1, self.v, dim)).repeat(1, self.t, 1, 1)
         # self.pos_embedding = self.pos_embedding.to(torch.device('cuda'))
-        self.pos_embedding = nn.Parameter(torch.randn(1, 1, self.v, dim, device=torch.device('cuda'))).repeat(1, self.t,
+        self.pos_embedding = nn.Parameter(torch.randn(1, 1, self.v * self.X, dim, device=torch.device('cuda'))).repeat(1, self.t // self.X,
                                                                                                               1, 1)
         self.dropout = nn.Dropout(emb_dropout)
 
@@ -170,7 +176,7 @@ class ViViT3n(nn.Module):
         N, M, T, V, C = x.size()
         x = x.permute(0, 1, 3, 4, 2).contiguous()
         # x = self.data_bn(x.view(N * M, V * C, T))
-        x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M, T, V, C)
+        x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M, T//self.X, self.X * V, C)
 
         tokens = self.to_embedding(x)
         tokens += self.pos_embedding
