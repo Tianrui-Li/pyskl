@@ -172,7 +172,7 @@ class ViViT2n(nn.Module):
         x = self.space_transformer(x_input)
 
         # 提取cls，x维度变为 N * M * V，dim
-        x = x[:, 0].view(N * M, T, -1)
+        x = x[:, 0].view(N * M, V, -1)
 
         # cls 变为 N * M，1，dim
         cls_temporal_tokens = self.temporal_token.expand(x.size(0), -1, -1)
