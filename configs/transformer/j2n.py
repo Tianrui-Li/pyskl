@@ -4,7 +4,7 @@ wandb.init(project='ViViT')
 model = dict(
     type='RecognizerGCN',
     backbone=dict(
-        type='ViViT2',
+        type='ViViT2n',
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
         max_position_embeddings_1=26,  # 25*40+1=1001
         max_position_embeddings_2=101,
