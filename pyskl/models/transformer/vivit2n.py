@@ -133,8 +133,8 @@ class ViViT2n(nn.Module):
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
         self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
 
-        self.enc_pe_1 = PositionalEncoding(dim, dropout, max_position_embeddings_1)
-        self.enc_pe_2 = PositionalEncoding(dim, dropout, max_position_embeddings_2)
+        self.enc_pe_1 = PositionalEncoding(dim, dropout, max_position_embeddings_2)
+        self.enc_pe_2 = PositionalEncoding(dim, dropout, max_position_embeddings_1)
         self.space_token = nn.Parameter(torch.randn(1, 1, dim))
         self.space_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
         self.temporal_token = nn.Parameter(torch.randn(1, 1, dim))
@@ -154,35 +154,35 @@ class ViViT2n(nn.Module):
         N, M, T, V, C = x.size()
         x = x.permute(0, 1, 3, 4, 2).contiguous()
         x = self.data_bn(x.view(N * M, V * C, T))
-        x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M * T, V, C)
+        x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M * V, T, C)
 
-        # 维度从 N * M * T, V, C 变为 N * M * T, V, dim
+        # 维度从 N * M * V, T, C 变为 N * M * V, T, dim
         x = self.to_embedding(x)
 
-        # cls 变为 N * M * T，1，dim
+        # cls 变为 N * M * V，1，dim
         cls_space_tokens = self.space_token.expand(x.size(0), -1, -1)
 
-        # x变为 N * M * T, 1+V, dim
+        # x变为 N * M * V, 1+T, dim
         x = torch.cat((cls_space_tokens, x), dim=1)
 
-        # 输出为 N * M * T, 1+V, dim
+        # 输出为 N * M * V, 1+T, dim
         x_input = self.enc_pe_1(x)
 
-        # 输出为 N * M * T, 1+V, dim
+        # 输出为 N * M * V, 1+T, dim
         x = self.space_transformer(x_input)
 
-        # 提取cls，x维度变为 N * M * T，dim
+        # 提取cls，x维度变为 N * M * V，dim
         x = x[:, 0].view(N * M, T, -1)
 
         # cls 变为 N * M，1，dim
         cls_temporal_tokens = self.temporal_token.expand(x.size(0), -1, -1)
 
-        # 输出为 N * M, 1+T, dim
+        # 输出为 N * M, 1+V, dim
         x = torch.cat((cls_temporal_tokens, x), dim=1)
 
         x = self.enc_pe_2(x)
 
-        # 输出为 N * M, 1+T, dim
+        # 输出为 N * M, 1+V, dim
         x = self.temporal_transformer(x)
 
         # 输出为 N, M, dim
