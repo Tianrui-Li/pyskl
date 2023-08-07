@@ -177,9 +177,9 @@ class ViViT3(nn.Module):
         tokens = self.dropout(tokens)
         x = self.transformer(tokens)
 
-        # x = x.mean(dim=1)
+        x = x.mean(dim=1)
         # x = self.to_latent(x)
-        x = x.view(N, M*T*V, -1)
+        x = x.view(N, M, -1)
 
         return x
 
