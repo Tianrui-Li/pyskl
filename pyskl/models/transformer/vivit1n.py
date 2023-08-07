@@ -4,7 +4,6 @@ import torch.nn as nn
 from torch import einsum
 from torch import Tensor
 from einops import rearrange
-from typing import List
 
 from ...utils import Graph
 from ..builder import BACKBONES
@@ -116,6 +115,7 @@ class Transformer(nn.Module):
             x = ln(x)
             x = attn(x) + x
             x = ff(x) + x
+            # print(x.size())
         return self.norm(x)
 
 
@@ -127,7 +127,7 @@ class ViViT1n(nn.Module):
             in_channels=3,
             dim=192,
             dropout=0.,
-            max_position_embeddings=512,
+            max_position_embeddings=1001,
             depth=4,
             heads=3,
             dim_head=64,
