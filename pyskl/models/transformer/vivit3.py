@@ -179,6 +179,7 @@ class ViViT3(nn.Module):
 
         x = x.mean(dim=1)
         # x = self.to_latent(x)
+        # x = x.view(N, M*T*V, -1) # 效果好，但需要更大的显存
         x = x.view(N, M, -1)
 
         return x
