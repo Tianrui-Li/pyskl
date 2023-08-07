@@ -69,7 +69,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j1/7.26-tm1-1'
+work_dir = './work_dirs/transformer/j1/8.7-tm1-2'
 
 auto_resume = False
 seed = 88

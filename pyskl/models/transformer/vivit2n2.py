@@ -8,14 +8,14 @@ from ...utils import Graph
 from ..builder import BACKBONES
 
 
-class PreNorm(nn.Module):
+class PostNorm(nn.Module):
     def __init__(self, dim, fn):
         super().__init__()
         self.norm = nn.LayerNorm(dim)
         self.fn = fn
 
     def forward(self, x, **kwargs):
-        return self.fn(self.norm(x), **kwargs)
+        return self.norm(self.fn(x), **kwargs)
 
 
 class FeedForward(nn.Module):
@@ -101,8 +101,8 @@ class Transformer(nn.Module):
         self.norm = nn.LayerNorm(dim)
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, heads=heads, dim_head=dim_head, dropout=dropout)),
-                PreNorm(dim, FeedForward(dim, mlp_dim, dropout=dropout))
+                PostNorm(dim, Attention(dim, heads=heads, dim_head=dim_head, dropout=dropout)),
+                PostNorm(dim, FeedForward(dim, mlp_dim, dropout=dropout))
             ]))
 
     def forward(self, x):
