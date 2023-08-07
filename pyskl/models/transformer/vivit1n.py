@@ -113,7 +113,7 @@ class Transformer(nn.Module):
 
 
 @BACKBONES.register_module()
-class ViViT1(nn.Module):
+class ViViT1n(nn.Module):
     def __init__(
             self,
             graph_cfg,
