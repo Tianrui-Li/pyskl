@@ -5,3 +5,4 @@ from .vivit4 import ViViT4  # noqa: F401, F403
 from .vivit1n import ViViT1n  # noqa: F401, F403
 from .vivit3n import ViViT3n  # noqa: F401, F403
 from .vivit2n import ViViT2n  # noqa: F401, F403
+from .vivit2n2 import ViViT2n2  # noqa: F401, F403

@@ -4,7 +4,7 @@ wandb.init(project='ViViT')
 model = dict(
     type='RecognizerGCN',
     backbone=dict(
-        type='ViViT2n',
+        type='ViViT2n2',
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
         max_position_embeddings_1=26,  # 25*40+1=1001
         max_position_embeddings_2=101,
@@ -71,7 +71,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j2/8.8-tm2-1'
+work_dir = './work_dirs/transformer/j2/8.8-tm2-2'
 
 auto_resume = False
 seed = 88
