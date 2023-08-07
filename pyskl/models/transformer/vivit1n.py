@@ -4,6 +4,8 @@ import torch.nn as nn
 from torch import einsum
 from torch import Tensor
 from einops import rearrange
+from typing import List
+
 from ...utils import Graph
 from ..builder import BACKBONES
 
@@ -95,18 +97,23 @@ def _init_weights(module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout=0.):
+    def __init__(self, first_dim, dim, depth, heads, dim_head, scale_dim, dropout=0.):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.norm = nn.LayerNorm(dim)
-        for _ in range(depth):
+        self.channels = first_dim
+        self.List1 = [3, 64, 96, 192]
+        self.List = [64, 96, 192, 256]
+        for i in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, heads=heads, dim_head=dim_head, dropout=dropout)),
-                PreNorm(dim, FeedForward(dim, mlp_dim, dropout=dropout))
+                nn.Linear(self.List1[i], self.List[i]),
+                PreNorm(self.List[i], Attention(dim=self.List[i], heads=heads, dim_head=dim_head, dropout=dropout)),
+                PreNorm(self.List[i], FeedForward(dim=self.List[i], hidden_dim=scale_dim*self.List[i], dropout=dropout))
             ]))
 
     def forward(self, x):
-        for attn, ff in self.layers:
+        for ln, attn, ff in self.layers:
+            x = ln(x)
             x = attn(x) + x
             x = ff(x) + x
         return self.norm(x)
@@ -125,16 +132,17 @@ class ViViT1n(nn.Module):
             heads=3,
             dim_head=64,
             scale_dim=4,
+            first_dim=3,
             ):
         super().__init__()
         graph = Graph(**graph_cfg)
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
         self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
 
-        self.enc_pe = PositionalEncoding(dim, dropout, max_position_embeddings)
-        self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
-        self.st_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
-        self.to_embedding = nn.Linear(in_channels, dim)
+        self.enc_pe = PositionalEncoding(first_dim, dropout, max_position_embeddings)
+        self.cls_token = nn.Parameter(torch.randn(1, 1, first_dim))
+        self.st_transformer = Transformer(first_dim, dim, depth, heads, dim_head, scale_dim, dropout)
+        # self.to_embedding = nn.Linear(in_channels, first_dim)
 
         self.init_weights()  # initialization
 
@@ -149,16 +157,18 @@ class ViViT1n(nn.Module):
         x = self.data_bn(x.view(N * M, V * C, T))
         x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M, T * V, C)
 
-        x = self.to_embedding(x)  # output(N*M,T*V,dim)
+        # x = self.to_embedding(x)  # output(N*M,T*V,dim)
 
-        # cls-token dim (N*M,1,dim)
+        # cls-token dim (N*M,1,first_dim)
         cls_st_tokens = self.cls_token.expand(x.size(0), -1, -1)
 
-        # output(N*M,1+T*V,dim)
+        # output(N*M,1+T*V,first_dim)
         x = torch.cat((cls_st_tokens, x), dim=1)
 
-        # output (N*M,1+T*V,dim)
+        # output (N*M,1+T*V,first_dim)
         x_input = self.enc_pe(x)
+
+        # 逐步增加hiddensize，从first_dim到dim
         x = self.st_transformer(x_input)
 
         # N*M,1,dim ->N,M,dim
