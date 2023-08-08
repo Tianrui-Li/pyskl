@@ -15,7 +15,7 @@ class PostNorm(nn.Module):
         self.fn = fn
 
     def forward(self, x, **kwargs):
-        return self.norm(self.fn(x), **kwargs)
+        return self.norm(x + self.fn(x), **kwargs)
 
 
 class FeedForward(nn.Module):
@@ -107,8 +107,8 @@ class Transformer(nn.Module):
 
     def forward(self, x):
         for attn, ff in self.layers:
-            x = attn(x) + x
-            x = ff(x) + x
+            x = attn(x)
+            x = ff(x)
         return self.norm(x)
 
 
