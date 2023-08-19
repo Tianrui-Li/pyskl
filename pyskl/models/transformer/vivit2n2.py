@@ -190,6 +190,7 @@ class ViViT2n2(nn.Module):
 
         return x
 
+
 # x = torch.randn(2,6,1,2,3)
 # model = ViViT2()
 # output = model.forward(x)
