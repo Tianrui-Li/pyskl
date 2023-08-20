@@ -1,9 +1,80 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import copy as cp
 import numpy as np
+import torch.nn.functional as F
+import torch
 
 from pyskl.utils import warning_r0
 from ..builder import PIPELINES
+
+
+def valid_crop_resize(data_numpy, valid_frame_num, p_interval, window):
+    # input: C,T,V,M
+    C, T, V, M = data_numpy.shape
+    begin = 0
+    end = valid_frame_num
+    valid_size = end - begin
+
+    # crop
+    if len(p_interval) == 1:
+        p = p_interval[0]
+        bias = int((1 - p) * valid_size / 2)
+        data = data_numpy[:, begin + bias:end - bias, :, :]  # center_crop
+        cropped_length = data.shape[1]
+    else:
+        p = np.random.rand(1) * (p_interval[1] - p_interval[0]) + p_interval[0]
+        cropped_length = np.minimum(np.maximum(int(np.floor(valid_size * p)), 64),
+                                    valid_size)  # constraint cropped_length lower bound as 64
+        bias = np.random.randint(0, valid_size - cropped_length + 1)
+        data = data_numpy[:, begin + bias:begin + bias + cropped_length, :, :]
+        if data.shape[1] == 0:
+            print(cropped_length, bias, valid_size)
+
+    # resize
+    data = torch.tensor(data, dtype=torch.float)
+    data = data.permute(0, 2, 3, 1).contiguous().view(C * V * M, cropped_length)
+    data = data[None, None, :, :]
+    data = F.interpolate(data, size=(C * V * M, window), mode='bilinear',
+                         align_corners=False).squeeze()  # could perform both up sample and down sample
+    data = data.contiguous().view(C, V, M, window).permute(0, 3, 1, 2).contiguous().numpy()
+
+    return data
+
+
+@PIPELINES.register_module()
+class STTSample:
+    def __init__(self,
+                 clip_len,
+                 num_clips=1,
+                 p_interval=1,
+                 **deprecated_kwargs):
+        self.clip_len = clip_len
+        self.num_clips = num_clips
+        self.p_interval = p_interval
+        if not isinstance(p_interval, tuple):
+            self.p_interval = (p_interval, p_interval)
+        self.inds = np.arange(0, clip_len)
+        self.valid_crop_resize = valid_crop_resize
+
+    def __call__(self, results):
+        data_numpy = results['keypoint']
+        data_numpy = data_numpy.transpose(3, 1, 2, 0)
+        valid_frame_num = np.sum(data_numpy.sum(0).sum(-1).sum(-1) != 0)
+        data_numpy = self.valid_crop_resize(data_numpy, valid_frame_num, self.p_interval, self.clip_len)
+        data_numpy = data_numpy.transpose(3, 1, 2, 0)
+        results['keypoint'] = data_numpy
+        results['frame_inds'] = self.inds.astype(int)
+        results['clip_len'] = self.clip_len
+        results['frame_interval'] = None
+        results['num_clips'] = self.num_clips
+        return results
+
+    def __repr__(self):
+        repr_str = (f'{self.__class__.__name__}('
+                    f'clip_len={self.clip_len}, '
+                    f'num_clips={self.num_clips}, '
+                    f'seed={self.seed})')
+        return repr_str
 
 
 @PIPELINES.register_module()
@@ -356,7 +427,7 @@ class SampleFrames:
                 clip_offsets = (base_offsets + np.random.uniform(
                     0, avg_interval, self.num_clips)).astype(int)
             else:
-                clip_offsets = np.zeros((self.num_clips, ), dtype=int)
+                clip_offsets = np.zeros((self.num_clips,), dtype=int)
         else:
             avg_interval = (num_frames - ori_clip_len + 1) // self.num_clips
 
@@ -372,7 +443,7 @@ class SampleFrames:
                 ratio = (num_frames - ori_clip_len + 1.0) / self.num_clips
                 clip_offsets = np.around(np.arange(self.num_clips) * ratio)
             else:
-                clip_offsets = np.zeros((self.num_clips, ), dtype=int)
+                clip_offsets = np.zeros((self.num_clips,), dtype=int)
 
         return clip_offsets
 
@@ -398,7 +469,7 @@ class SampleFrames:
             if self.twice_sample:
                 clip_offsets = np.concatenate([clip_offsets, base_offsets])
         else:
-            clip_offsets = np.zeros((self.num_clips, ), dtype=int)
+            clip_offsets = np.zeros((self.num_clips,), dtype=int)
         return clip_offsets
 
     def _sample_clips(self, num_frames, test_mode=False):
