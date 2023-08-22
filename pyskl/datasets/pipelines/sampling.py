@@ -64,9 +64,7 @@ class STTSample:
         data_numpy = data_numpy.transpose(3, 1, 2, 0)
         results['keypoint'] = data_numpy
         results['frame_inds'] = self.inds.astype(int)
-        results['clip_len'] = self.clip_len
-        results['frame_interval'] = None
-        results['num_clips'] = self.num_clips
+        results['total_frames'] = self.clip_len
         return results
 
     def __repr__(self):
