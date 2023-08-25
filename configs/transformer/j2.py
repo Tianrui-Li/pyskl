@@ -11,7 +11,7 @@ model = dict(
         # dropout=0.1,
         dim=256,
     ),
-    cls_head=dict(type='vit2Head', num_classes=60, in_channels=256))
+    cls_head=dict(type='vit2Head', num_classes=120, in_channels=256))
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu120_3danno.pkl'
