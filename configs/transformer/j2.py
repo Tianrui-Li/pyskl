@@ -14,7 +14,7 @@ model = dict(
     cls_head=dict(type='vit2Head', num_classes=60, in_channels=256))
 
 dataset_type = 'PoseDataset'
-ann_file = 'data/nturgbd/ntu60_3danno.pkl'
+ann_file = 'data/nturgbd/ntu120_3danno.pkl'
 clip_len = 100
 train_pipeline = [
     dict(type='PreNormalize3D'),
@@ -71,7 +71,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j2/8.11-tm2-2'
+work_dir = './work_dirs/transformer/j2/8.30-tm2-2'
 
 auto_resume = False
 seed = 88
