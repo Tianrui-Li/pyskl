@@ -4,11 +4,9 @@ wandb.init(project='ViViT')
 model = dict(
     type='RecognizerGCN',
     backbone=dict(
-        type='ViViT2',
+        type='ViViT1nn',
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
-        max_position_embeddings_1=26,  # 25*40+1=1001
-        max_position_embeddings_2=101,
-        # dropout=0.1,
+        max_position_embeddings_2=100,
         dim=256,
     ),
     cls_head=dict(type='vit2Head', num_classes=60, in_channels=256))
@@ -20,7 +18,6 @@ train_pipeline = [
     dict(type='PreNormalize3D'),
     dict(type='RandomScale', scale=0.1),
     dict(type='RandomRot'),
-    # dict(type='RandomRot', theta=0.2),
     dict(type='GenSkeFeat', dataset='nturgb+d', feats=['j']),
     dict(type='UniformSample', clip_len=clip_len),
     dict(type='PoseDecode'),
@@ -47,7 +44,7 @@ test_pipeline = [
     dict(type='ToTensor', keys=['keypoint'])
 ]
 data = dict(
-    videos_per_gpu=24,
+    videos_per_gpu=16,
     workers_per_gpu=8,
     test_dataloader=dict(videos_per_gpu=1),
     train=dict(
@@ -59,8 +56,7 @@ data = dict(
     test=dict(type=dataset_type, ann_file=ann_file, pipeline=test_pipeline, split='xsub_val'))
 
 # optimizer
-# optimizer = dict(type='Adam', lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.0005, amsgrad=False)
-optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0004, nesterov=True)
+optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005, nesterov=True)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
@@ -71,7 +67,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j2/8.30-tm2-2'
+work_dir = './work_dirs/transformer/j1/8.30-tm1-1'
 
 auto_resume = False
 seed = 88
