@@ -9,6 +9,7 @@ model = dict(
         max_position_embeddings_1=26,  # 25*40+1=1001
         max_position_embeddings_2=101,
         # dropout=0.1,
+        heads=6,
         dim=256,
     ),
     cls_head=dict(type='vit2Head', num_classes=60, in_channels=256))
@@ -71,7 +72,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j2/8.30-tm2-2'
+work_dir = './work_dirs/transformer/j2/8.30-tm2-3'
 
 auto_resume = False
 seed = 88

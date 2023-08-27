@@ -45,7 +45,7 @@ class Attention(nn.Module):
         self.scale = dim_head ** -0.5
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=False)
 
-        self.att0s = nn.Parameter(torch.ones(1, heads, 1001, 1001) / 1001, requires_grad=True)
+        # self.att0s = nn.Parameter(torch.ones(1, heads, 1001, 1001) / 1001, requires_grad=True)
 
         self.to_out = nn.Sequential(
             nn.Linear(inner_dim, dim),
@@ -58,9 +58,9 @@ class Attention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), qkv)
 
         dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
-        # print("*"*100)
-        # print(dots.shape)
-        dots = dots + self.att0s.repeat(b, 1, 1, 1)
+        # # print("*"*100)
+        # # print(dots.shape)
+        # dots = dots + self.att0s.repeat(b, 1, 1, 1)
         attn = dots.softmax(dim=-1)
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
