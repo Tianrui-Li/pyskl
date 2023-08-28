@@ -9,27 +9,29 @@ def cast_tuple(val, length=1):
     return val if isinstance(val, tuple) else ((val,) * length)
 
 
-class LayerNorm(nn.Module):
-    def __init__(self, dim, eps=1e-5):
+class PreNorm(nn.Module):
+    def __init__(self, dim, fn):
         super().__init__()
-        self.eps = eps
-        self.g = nn.Parameter(torch.ones(1, dim, 1, 1))
-        self.b = nn.Parameter(torch.zeros(1, dim, 1, 1))
+        self.norm = nn.LayerNorm(dim)
+        self.fn = fn
+
+    def forward(self, x, **kwargs):
+        return self.fn(self.norm(x), **kwargs)
+
+
+class FeedForward(nn.Module):
+    def __init__(self, dim, hidden_dim, dropout=0.):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, dim),
+            nn.Dropout(dropout)
+        )
 
     def forward(self, x):
-        var = torch.var(x, dim=1, unbiased=False, keepdim=True)
-        mean = torch.mean(x, dim=1, keepdim=True)
-        return (x - mean) / (var + self.eps).sqrt() * self.g + self.b
-
-
-def FeedForward(dim, mult=4, dropout=0.):
-    return nn.Sequential(
-        LayerNorm(dim),
-        nn.Conv2d(dim, dim * mult, 1),
-        nn.GELU(),
-        nn.Dropout(dropout),
-        nn.Conv2d(dim * mult, dim, 1)
-    )
+        return self.net(x)
 
 
 class Attention(nn.Module):
@@ -52,54 +54,32 @@ class Attention(nn.Module):
         self.attn_type = attn_type
         self.window_size = window_size
         self.window_size2 = window_size2
-
-        self.norm = LayerNorm(dim)
-
         self.dropout = nn.Dropout(dropout)
 
         self.to_qkv = nn.Conv2d(dim, inner_dim * 3, 1, bias=False)
         self.to_out = nn.Conv2d(inner_dim, dim, 1)
 
     def forward(self, x):
+        x = x.permute(0, 3, 1, 2).contiguous()
         *_, height, width, heads, wsz, wsz2, device = *x.shape, self.heads, self.window_size, self.window_size2, x.device
-
-        x = self.norm(x)
-
-        # rearrange for short or long distance attention
-
         if self.attn_type == 'short':
             x = rearrange(x, 'b d (h s1) (w s2) -> (b h w) d s1 s2', s1=wsz, s2=wsz2)
         elif self.attn_type == 'long':
             x = rearrange(x, 'b d (l1 h) (l2 w) -> (b h w) d l1 l2', l1=wsz, l2=wsz2)
-
-        # queries / keys / values
-
         q, k, v = self.to_qkv(x).chunk(3, dim=1)
-
-        # split heads
-
         q, k, v = map(lambda t: rearrange(t, 'b (h d) x y -> b h (x y) d', h=heads), (q, k, v))
         q = q * self.scale
-
         sim = einsum('b h i d, b h j d -> b h i j', q, k)
-
-        # attend
-
         attn = sim.softmax(dim=-1)
         attn = self.dropout(attn)
-
-        # merge heads
-
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h (x y) d -> b (h d) x y', x=wsz, y=wsz2)
         out = self.to_out(out)
-
-        # rearrange back for long or short distance attention
-
         if self.attn_type == 'short':
             out = rearrange(out, '(b h w) d s1 s2 -> b d (h s1) (w s2)', h=height // wsz, w=width // wsz2)
         elif self.attn_type == 'long':
             out = rearrange(out, '(b h w) d l1 l2 -> b d (l1 h) (l2 w)', h=height // wsz, w=width // wsz2)
+        out = out.permute(0, 2, 3, 1).contiguous()
 
         return out
 
@@ -117,32 +97,30 @@ class Transformer(nn.Module):
             dim_head=32,
             attn_dropout=0.,
             ff_dropout=0.,
+            scale_dim=4,
     ):
         super().__init__()
         self.layers = nn.ModuleList([])
 
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                Attention(dim, attn_type='short', window_size=local_window_size, window_size2=local_window_size2,
+                PreNorm(dim, Attention(dim, attn_type='short', window_size=local_window_size,
+                                       window_size2=local_window_size2,
+                                       dim_head=dim_head,
+                                       dropout=attn_dropout), ),
+                PreNorm(dim, FeedForward(dim, dim*scale_dim, dropout=ff_dropout), ),
+                PreNorm(dim, Attention(dim, attn_type='long', window_size=global_window_size, window_size2=global_window_size2,
                           dim_head=dim_head,
-                          dropout=attn_dropout),
-                FeedForward(dim, dropout=ff_dropout),
-                Attention(dim, attn_type='long', window_size=global_window_size, window_size2=global_window_size2,
-                          dim_head=dim_head,
-                          dropout=attn_dropout),
-                FeedForward(dim, dropout=ff_dropout)
+                          dropout=attn_dropout), ),
+                PreNorm(dim, FeedForward(dim, dim*scale_dim, dropout=ff_dropout)),
             ]))
 
     def forward(self, x):
-        x = x.permute(0, 3, 1, 2).contiguous()
-
         for short_attn, short_ff, long_attn, long_ff in self.layers:
             x = short_attn(x) + x
             x = short_ff(x) + x
             x = long_attn(x) + x
             x = long_ff(x) + x
-
-        x = x.permute(0, 2, 3, 1).contiguous()
 
         return x
 
@@ -180,7 +158,6 @@ class CrossFormer(nn.Module):
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
         self.data_bn = nn.BatchNorm1d(channels * A.size(1))
 
-
         dim = cast_tuple(dim, 4)
         depth = cast_tuple(depth, 4)
         global_window_size = cast_tuple(global_window_size, 4)
@@ -215,7 +192,7 @@ class CrossFormer(nn.Module):
             ]))
 
         self.pos_embedding = nn.Parameter(torch.randn(1, 1, 25, channels, device=torch.device(
-        'cuda'))).repeat(1, 96, 1, 1)
+            'cuda'))).repeat(1, 96, 1, 1)
         self.init_weights()  # initialization
 
     def init_weights(self):
@@ -238,7 +215,6 @@ class CrossFormer(nn.Module):
         x = x.view(N, M, -1)
 
         return x
-
 
 # x = torch.randn(4, 2, 96, 25, 3)
 # model = CrossFormer()
