@@ -11,7 +11,7 @@ model = dict(
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
-clip_len = 96
+clip_len = 48
 train_pipeline = [
     dict(type='PreNormalize3D'),
     dict(type='RandomScale', scale=0.1),
@@ -42,7 +42,7 @@ test_pipeline = [
     dict(type='ToTensor', keys=['keypoint'])
 ]
 data = dict(
-    videos_per_gpu=12,
+    videos_per_gpu=8,
     workers_per_gpu=8,
     test_dataloader=dict(videos_per_gpu=1),
     train=dict(

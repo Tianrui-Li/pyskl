@@ -210,7 +210,7 @@ class CrossFormer(nn.Module):
             x = cel(x)
             x = transformer(x)
 
-        x = x.contiguous().view(N * M, T * V, -1)
+        x = torch.flatten(x, start_dim=1, end_dim=2)
         x = x.mean(dim=1)
         x = x.view(N, M, -1)
 
