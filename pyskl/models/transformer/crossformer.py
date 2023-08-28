@@ -142,7 +142,7 @@ class CrossFormer(nn.Module):
             self,
             graph_cfg,
             *,
-            dim=(64, 128, 256, 512),
+            dim=(32, 64, 128, 256),
             depth=(2, 2, 8, 2),
             global_window_size=(8, 4, 2, 1),
             global_window_size2=(5, 1, 1, 1),

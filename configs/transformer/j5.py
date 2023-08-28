@@ -7,7 +7,7 @@ model = dict(
         type='CrossFormer',
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
     ),
-    cls_head=dict(type='vit2Head', num_classes=60, in_channels=512))
+    cls_head=dict(type='vit2Head', num_classes=60, in_channels=256))
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
