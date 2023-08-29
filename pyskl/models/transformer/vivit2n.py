@@ -95,11 +95,17 @@ def _init_weights(module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout=0.):
+    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout=0., mode='space'):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.norm = nn.LayerNorm(dim)
-        for _ in range(depth):
+        self.mode = mode
+        if mode == 'space':
+            self.depth = 4
+        else:
+            self.depth = 8
+
+        for _ in range(self.depth):
             self.layers.append(nn.ModuleList([
                 PreNorm(dim, Attention(dim, heads=heads, dim_head=dim_head, dropout=dropout)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout=dropout))
@@ -136,9 +142,9 @@ class ViViT2n(nn.Module):
         self.enc_pe_1 = PositionalEncoding(dim, dropout, max_position_embeddings_2)
         self.enc_pe_2 = PositionalEncoding(dim, dropout, max_position_embeddings_1)
         self.space_token = nn.Parameter(torch.randn(1, 1, dim))
-        self.space_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
+        self.space_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout, mode='space')
         self.temporal_token = nn.Parameter(torch.randn(1, 1, dim))
-        self.temporal_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
+        self.temporal_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout, mode='temp')
         self.to_embedding = nn.Linear(in_channels, dim)
 
         self.init_weights()
