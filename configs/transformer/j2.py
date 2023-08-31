@@ -1,16 +1,15 @@
 import wandb
-wandb.init(project='ViViT')
+wandb.init(project='ViViT2')
 
 model = dict(
     type='RecognizerGCN',
     backbone=dict(
         type='ViViT2',
-        graph_cfg=dict(layout='nturgb+d', mode='spatial'),
         max_position_embeddings_1=26,  # 25*40+1=1001
         max_position_embeddings_2=101,
         # dropout=0.1,
-        heads=6,
         dim=256,
+        graph_cfg=dict(layout='nturgb+d', mode='random', num_filter=8, init_off=.04, init_std=.02),
     ),
     cls_head=dict(type='vit2Head', num_classes=60, in_channels=256))
 
@@ -48,7 +47,7 @@ test_pipeline = [
     dict(type='ToTensor', keys=['keypoint'])
 ]
 data = dict(
-    videos_per_gpu=16,
+    videos_per_gpu=24,
     workers_per_gpu=8,
     test_dataloader=dict(videos_per_gpu=1),
     train=dict(
@@ -72,7 +71,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j2/8.30-tm2-3'
+work_dir = './work_dirs/transformer/j2/9.6-tm2-1'
 
 auto_resume = False
 seed = 88
