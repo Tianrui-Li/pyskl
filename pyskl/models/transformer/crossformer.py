@@ -142,7 +142,7 @@ class CrossFormer(nn.Module):
             self,
             graph_cfg,
             *,
-            dim=(32, 64, 128, 256),
+            dim=(64, 128, 256, 512),
             depth=(2, 2, 8, 2),
             global_window_size=(8, 4, 2, 1),
             global_window_size2=(5, 1, 1, 1),
@@ -192,7 +192,7 @@ class CrossFormer(nn.Module):
             ]))
 
         self.pos_embedding = nn.Parameter(torch.randn(1, 1, 25, channels, device=torch.device(
-            'cuda'))).repeat(1, 48, 1, 1)
+            'cuda'))).repeat(1, 96, 1, 1)
         self.init_weights()  # initialization
 
     def init_weights(self):
