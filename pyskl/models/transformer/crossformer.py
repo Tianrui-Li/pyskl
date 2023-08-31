@@ -192,7 +192,7 @@ class CrossFormer(nn.Module):
             ]))
 
         self.pos_embedding = nn.Parameter(torch.randn(1, 1, 25, channels, device=torch.device(
-            'cuda'))).repeat(1, 96, 1, 1)
+            'cuda'))).repeat(1, 48, 1, 1)
         self.init_weights()  # initialization
 
     def init_weights(self):
