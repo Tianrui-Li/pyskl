@@ -34,7 +34,7 @@ class FeedForward(nn.Module):
 
 
 class FSAttention(nn.Module):
-    def __init__(self, dim, heads=8, dim_head=64, dropout=0.):
+    def __init__(self, dim, heads=3, dim_head=64, dropout=0.):
         super().__init__()
 
         inner_dim = dim_head * heads
@@ -129,16 +129,16 @@ class ViViT3(nn.Module):
 
     def __init__(self,
                  graph_cfg,
-                 dim=192,
-                 depth=4,
-                 heads=3,
-                 dim_head=64,
+                 dim=324,
+                 depth=8,
+                 heads=9,
+                 dim_head=36,
                  in_channels=3,
                  emb_dropout=0.,
                  dropout=0.,
                  scale_dim=4,
                  max_position_embeddings_1=25,
-                 max_position_embeddings_2=32,
+                 max_position_embeddings_2=64,
                  ):
         super().__init__()
         graph = Graph(**graph_cfg)
