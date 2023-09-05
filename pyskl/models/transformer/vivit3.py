@@ -129,10 +129,10 @@ class ViViT3(nn.Module):
 
     def __init__(self,
                  graph_cfg,
-                 dim=324,
+                 dim=576,
                  depth=8,
                  heads=9,
-                 dim_head=36,
+                 dim_head=64,
                  in_channels=3,
                  emb_dropout=0.,
                  dropout=0.,

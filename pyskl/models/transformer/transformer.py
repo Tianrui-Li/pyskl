@@ -122,12 +122,12 @@ class ViViT1(nn.Module):
             self,
             graph_cfg,
             in_channels=3,
-            dim=192,
+            dim=324,
             dropout=0.,
             max_position_embeddings=512,
-            depth=4,
-            heads=3,
-            dim_head=64,
+            depth=8,
+            heads=9,
+            dim_head=36,
             scale_dim=4,
             ):
         super().__init__()
