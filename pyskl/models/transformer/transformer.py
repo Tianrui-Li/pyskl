@@ -127,7 +127,7 @@ class ViViT1(nn.Module):
             max_position_embeddings=512,
             depth=8,
             heads=9,
-            dim_head=36,
+            dim_head=64,
             scale_dim=4,
             ):
         super().__init__()
