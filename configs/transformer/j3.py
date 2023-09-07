@@ -6,14 +6,14 @@ model = dict(
     backbone=dict(
         type='ViViT3',
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
-        max_position_embeddings_2=64,
-        dim=324,
+        max_position_embeddings_2=60,
+        dim=576,
     ),
-    cls_head=dict(type='vit2Head', num_classes=60, in_channels=324))
+    cls_head=dict(type='vit2Head', num_classes=60, in_channels=576))
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
-clip_len = 64
+clip_len = 60
 train_pipeline = [
     dict(type='PreNormalize3D'),
     dict(type='RandomScale', scale=0.1),
@@ -45,7 +45,7 @@ test_pipeline = [
 ]
 data = dict(
     videos_per_gpu=32,
-    workers_per_gpu=8,
+    workers_per_gpu=16,
     test_dataloader=dict(videos_per_gpu=1),
     # train=dict(
     #     type='RepeatDataset',
@@ -56,18 +56,18 @@ data = dict(
     test=dict(type=dataset_type, ann_file=ann_file, pipeline=test_pipeline, split='xsub_val'))
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005, nesterov=True)
+optimizer = dict(type='SGD', lr=0.001, momentum=0.9, weight_decay=0.0005, nesterov=True)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
-total_epochs = 150
+total_epochs = 80
 checkpoint_config = dict(interval=1)
 evaluation = dict(interval=1, metrics=['top_k_accuracy'])
 log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j3/9.6-tm3-3'
+work_dir = './work_dirs/transformer/j3/9.6-tm3-4'
 
 auto_resume = False
 seed = 88
