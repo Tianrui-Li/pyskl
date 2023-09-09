@@ -22,6 +22,7 @@ class FeedForward(nn.Module):
     def __init__(self, dim, hidden_dim, dropout=0.):
         super().__init__()
         self.net = nn.Sequential(
+            nn.LayerNorm(dim),
             nn.Linear(dim, hidden_dim),
             nn.GELU(),
             nn.Dropout(dropout),
@@ -130,7 +131,7 @@ class ViViT3(nn.Module):
     def __init__(self,
                  graph_cfg,
                  dim=576,
-                 depth=8,
+                 depth=4,
                  heads=9,
                  dim_head=64,
                  in_channels=3,
