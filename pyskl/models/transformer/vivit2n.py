@@ -8,20 +8,30 @@ from ...utils import Graph
 from ..builder import BACKBONES
 
 
-class PreNorm(nn.Module):
+# class PreNorm(nn.Module):
+#     def __init__(self, dim, fn):
+#         super().__init__()
+#         self.norm = nn.LayerNorm(dim)
+#         self.fn = fn
+#
+#     def forward(self, x, **kwargs):
+#         return self.fn(self.norm(x), **kwargs)
+
+class PostNorm(nn.Module):
     def __init__(self, dim, fn):
         super().__init__()
         self.norm = nn.LayerNorm(dim)
         self.fn = fn
 
     def forward(self, x, **kwargs):
-        return self.fn(self.norm(x), **kwargs)
+        return self.norm(x + self.fn(x), **kwargs)
 
 
 class FeedForward(nn.Module):
     def __init__(self, dim, hidden_dim, dropout=0.):
         super().__init__()
         self.net = nn.Sequential(
+            nn.LayerNorm(dim),
             nn.Linear(dim, hidden_dim),
             nn.GELU(),
             nn.Dropout(dropout),
@@ -36,9 +46,9 @@ class FeedForward(nn.Module):
 class Attention(nn.Module):
     def __init__(self, dim, heads=8, dim_head=64, dropout=0.):
         super().__init__()
+        self.norm = nn.LayerNorm(dim)
 
         inner_dim = dim_head * heads
-
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
@@ -51,6 +61,7 @@ class Attention(nn.Module):
         ) if project_out else nn.Identity()
 
     def forward(self, x):
+        x = self.norm(x)
         b, n, d, h = *x.shape, self.heads
         qkv = self.to_qkv(x).chunk(3, dim=-1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), qkv)
@@ -95,26 +106,22 @@ def _init_weights(module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout=0., mode='space'):
+    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout=0.):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.norm = nn.LayerNorm(dim)
-        self.mode = mode
-        if mode == 'space':
-            self.depth = 4
-        else:
-            self.depth = 8
+        self.depth = depth
 
         for _ in range(self.depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, heads=heads, dim_head=dim_head, dropout=dropout)),
-                PreNorm(dim, FeedForward(dim, mlp_dim, dropout=dropout))
+                PostNorm(dim, Attention(dim, heads=heads, dim_head=dim_head, dropout=dropout)),
+                PostNorm(dim, FeedForward(dim, mlp_dim, dropout=dropout))
             ]))
 
     def forward(self, x):
         for attn, ff in self.layers:
-            x = attn(x) + x
-            x = ff(x) + x
+            x = attn(x)
+            x = ff(x)
         return self.norm(x)
 
 
@@ -124,9 +131,9 @@ class ViViT2n(nn.Module):
             self,
             graph_cfg,
             in_channels=3,
-            dim=192,
+            dim=576,
             depth=4,
-            heads=3,
+            heads=9,
             dim_head=64,
             dropout=0.,
             scale_dim=4,
@@ -142,10 +149,14 @@ class ViViT2n(nn.Module):
         self.enc_pe_1 = PositionalEncoding(dim, dropout, max_position_embeddings_2)
         self.enc_pe_2 = PositionalEncoding(dim, dropout, max_position_embeddings_1)
         self.space_token = nn.Parameter(torch.randn(1, 1, dim))
-        self.space_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout, mode='space')
+        self.space_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
         self.temporal_token = nn.Parameter(torch.randn(1, 1, dim))
-        self.temporal_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout, mode='temp')
-        self.to_embedding = nn.Linear(in_channels, dim)
+        self.temporal_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
+        self.to_embedding = nn.Sequential(
+            nn.LayerNorm(in_channels),
+            nn.Linear(in_channels, dim),
+            nn.LayerNorm(dim),
+        )
 
         self.init_weights()
 
