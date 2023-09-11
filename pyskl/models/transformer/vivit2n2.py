@@ -133,8 +133,8 @@ class ViViT2n2(nn.Module):
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
         self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
 
-        self.enc_pe_1 = PositionalEncoding(dim, dropout, max_position_embeddings_1)
-        self.enc_pe_2 = PositionalEncoding(dim, dropout, max_position_embeddings_2)
+        self.enc_pe_1 = PositionalEncoding(dim, dropout, max_position_embeddings_2)
+        self.enc_pe_2 = PositionalEncoding(dim, dropout, max_position_embeddings_1)
         self.space_token = nn.Parameter(torch.randn(1, 1, dim))
         self.space_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
         self.temporal_token = nn.Parameter(torch.randn(1, 1, dim))
