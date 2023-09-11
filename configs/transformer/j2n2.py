@@ -7,7 +7,7 @@ model = dict(
         type='ViViT2n2',
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
         max_position_embeddings_1=26,  # 25*40+1=1001
-        max_position_embeddings_2=65,
+        max_position_embeddings_2=49,
         # dropout=0.1,
         dim=576,
     ),
@@ -15,7 +15,7 @@ model = dict(
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
-clip_len = 64
+clip_len = 48
 train_pipeline = [
     dict(type='PreNormalize3D'),
     dict(type='RandomScale', scale=0.1),
