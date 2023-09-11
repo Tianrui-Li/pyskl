@@ -9,9 +9,9 @@ model = dict(
         max_position_embeddings_1=26,  # 25*40+1=1001
         max_position_embeddings_2=49,
         # dropout=0.1,
-        dim=576,
+        dim=9*36,
     ),
-    cls_head=dict(type='vit2Head', num_classes=60, in_channels=576))
+    cls_head=dict(type='vit2Head', num_classes=60, in_channels=9*36))
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
