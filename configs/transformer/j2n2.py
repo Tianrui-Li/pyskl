@@ -7,15 +7,15 @@ model = dict(
         type='ViViT2n2',
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
         max_position_embeddings_1=26,  # 25*40+1=1001
-        max_position_embeddings_2=101,
+        max_position_embeddings_2=65,
         # dropout=0.1,
-        dim=256,
+        dim=576,
     ),
-    cls_head=dict(type='vit2Head', num_classes=60, in_channels=256))
+    cls_head=dict(type='vit2Head', num_classes=60, in_channels=576))
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
-clip_len = 100
+clip_len = 64
 train_pipeline = [
     dict(type='PreNormalize3D'),
     dict(type='RandomScale', scale=0.1),
@@ -71,7 +71,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j2/8.8-tm2-4'
+work_dir = './work_dirs/transformer/j2/9.13-tm2-3'
 
 auto_resume = False
 seed = 88
