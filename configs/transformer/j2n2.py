@@ -22,6 +22,7 @@ train_pipeline = [
     dict(type='RandomRot'),
     # dict(type='RandomRot', theta=0.2),
     dict(type='GenSkeFeat', dataset='nturgb+d', feats=['j']),
+    dict(type='STTSample', clip_len=56, p_interval=(0.5, 1)),
     dict(type='UniformSample', clip_len=clip_len),
     dict(type='PoseDecode'),
     dict(type='FormatGCNInput', num_person=2),
@@ -31,6 +32,7 @@ train_pipeline = [
 val_pipeline = [
     dict(type='PreNormalize3D'),
     dict(type='GenSkeFeat', dataset='nturgb+d', feats=['j']),
+    dict(type='STTSample', clip_len=56, p_interval=(0.5, 1)),
     dict(type='UniformSample', clip_len=clip_len, num_clips=1),
     dict(type='PoseDecode'),
     dict(type='FormatGCNInput', num_person=2),
@@ -40,6 +42,7 @@ val_pipeline = [
 test_pipeline = [
     dict(type='PreNormalize3D'),
     dict(type='GenSkeFeat', dataset='nturgb+d', feats=['j']),
+    dict(type='STTSample', clip_len=56, p_interval=(0.5, 1)),
     dict(type='UniformSample', clip_len=clip_len, num_clips=10),
     dict(type='PoseDecode'),
     dict(type='FormatGCNInput', num_person=2),
@@ -47,8 +50,8 @@ test_pipeline = [
     dict(type='ToTensor', keys=['keypoint'])
 ]
 data = dict(
-    videos_per_gpu=24,
-    workers_per_gpu=8,
+    videos_per_gpu=64,
+    workers_per_gpu=16,
     test_dataloader=dict(videos_per_gpu=1),
     train=dict(
         type='RepeatDataset',
@@ -71,7 +74,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j2/9.13-tm2-3'
+work_dir = './work_dirs/transformer/j2/9.13-tm2-4'
 
 auto_resume = False
 seed = 88
