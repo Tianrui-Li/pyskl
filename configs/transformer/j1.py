@@ -7,17 +7,15 @@ model = dict(
         type='ViViT1',
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
         max_position_embeddings=1001,  # 100*25+1=2501，
-        dim=576,
+        dim=9*36,
     ),
-    cls_head=dict(type='vit2Head', num_classes=60, in_channels=576))
+    cls_head=dict(type='vit2Head', num_classes=60, in_channels=9*36))
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
 clip_len = 40
 train_pipeline = [
     dict(type='PreNormalize3D'),
-    dict(type='RandomScale', scale=0.1),
-    dict(type='RandomRot'),
     dict(type='GenSkeFeat', dataset='nturgb+d', feats=['j']),
     dict(type='UniformSample', clip_len=clip_len),
     dict(type='PoseDecode'),
@@ -44,14 +42,14 @@ test_pipeline = [
     dict(type='ToTensor', keys=['keypoint'])
 ]
 data = dict(
-    videos_per_gpu=32,
-    workers_per_gpu=8,
+    videos_per_gpu=48,
+    workers_per_gpu=16,
     test_dataloader=dict(videos_per_gpu=1),
-       # train=dict(
-    #     type='RepeatDataset',
-    #     times=2,
-    #     dataset=dict(type=dataset_type, ann_file=ann_file, pipeline=train_pipeline, split='xsub_train')),
-    train=dict(type=dataset_type, ann_file=ann_file, pipeline=train_pipeline, split='xsub_train'),
+       train=dict(
+        type='RepeatDataset',
+        times=2,
+        dataset=dict(type=dataset_type, ann_file=ann_file, pipeline=train_pipeline, split='xsub_train')),
+    # train=dict(type=dataset_type, ann_file=ann_file, pipeline=train_pipeline, split='xsub_train'),
     val=dict(type=dataset_type, ann_file=ann_file, pipeline=val_pipeline, split='xsub_val'),
     test=dict(type=dataset_type, ann_file=ann_file, pipeline=test_pipeline, split='xsub_val'))
 
@@ -60,14 +58,14 @@ optimizer = dict(type='SGD', lr=0.005, momentum=0.9, weight_decay=0.0005, nester
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
-total_epochs = 80
+total_epochs = 60
 checkpoint_config = dict(interval=1)
 evaluation = dict(interval=1, metrics=['top_k_accuracy'])
 log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j1/9.13-tm1-1'
+work_dir = './work_dirs/transformer/j1/9.13-tm1-2'
 
 auto_resume = False
 seed = 88
