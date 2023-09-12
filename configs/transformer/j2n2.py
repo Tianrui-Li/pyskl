@@ -9,6 +9,7 @@ model = dict(
         max_position_embeddings_1=26,  # 25*40+1=1001
         max_position_embeddings_2=49,
         # dropout=0.1,
+        depth=10,
         dim=9*36,
     ),
     cls_head=dict(type='vit2Head', num_classes=60, in_channels=9*36))
@@ -50,7 +51,7 @@ test_pipeline = [
     dict(type='ToTensor', keys=['keypoint'])
 ]
 data = dict(
-    videos_per_gpu=64,
+    videos_per_gpu=32,
     workers_per_gpu=16,
     test_dataloader=dict(videos_per_gpu=1),
     train=dict(
@@ -74,7 +75,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j2/9.13-tm2-4'
+work_dir = './work_dirs/transformer/j2/9.13-tm2-5'
 
 auto_resume = False
 seed = 88
