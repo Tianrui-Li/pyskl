@@ -7,4 +7,5 @@ from .vivit3n import ViViT3n  # noqa: F401, F403
 from .vivit2n import ViViT2n  # noqa: F401, F403
 from .vivit2n2 import ViViT2n2  # noqa: F401, F403
 from .vivit1nn import ViViT1nn  # noqa: F401, F403
-from .crossformer import CrossFormer # noqa: F401, F403
+from .crossformer import CrossFormer  # noqa: F401, F403
+from .lst import LST  # noqa: F401, F403
