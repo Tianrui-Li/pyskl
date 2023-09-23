@@ -218,6 +218,6 @@ class LST(nn.Module):
             hidden_state = hidden_state[:, :1, :]
 
         hidden_state = rearrange(
-            hidden_state, '(n m) tv c -> n (mtv) c', n=N)
+            hidden_state, '(n m) tv c -> n m tv c', n=N)
 
         return hidden_state
