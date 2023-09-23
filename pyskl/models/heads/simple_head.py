@@ -35,7 +35,7 @@ class SimpleHead(BaseHead):
             self.dropout = nn.Dropout(p=self.dropout_ratio)
         else:
             self.dropout = None
-        assert mode in ['3D', 'GCN', '2D', 'vit2']
+        assert mode in ['3D', 'GCN', '2D', 'vit2','TR']
         self.mode = mode
 
         self.in_c = in_channels
@@ -186,6 +186,8 @@ class vit2Head(SimpleHead):
                          init_std=init_std,
                          mode='vit2',
                          **kwargs)
+
+
 @HEADS.register_module()
 class TRHead(SimpleHead):
 
