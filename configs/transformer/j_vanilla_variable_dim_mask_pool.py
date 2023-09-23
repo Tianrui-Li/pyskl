@@ -1,3 +1,6 @@
+import wandb
+wandb.init(project='ViViT2')
+
 model = dict(
     type='RecognizerGCN',
     backbone=dict(
@@ -10,10 +13,7 @@ model = dict(
     cls_head=dict(type='TRHead', num_classes=60, in_channels=256, dropout=0.))
 
 dataset_type = 'PoseDataset'
-# ann_file = '/hkfs/work/workspace_haic/scratch/on3546-Datasets/NTURGBD/ntu60_3danno.pkl'
-# ann_file = '/home/zhong/Documents/datasets/NTU_60/ntu60_3danno.pkl'
-# ann_file = '/pfs/work8/workspace/ffuc/scratch/on3546-datasets/NTURGBD/ntu60_3danno.pkl'
-ann_file = '/media/ssd/datasets/NTURGBD/ntu60_3danno.pkl'
+ann_file = 'data/nturgbd/ntu60_3danno.pkl'
 
 clip_len = 64
 mode = 'zero'
@@ -72,7 +72,8 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='W
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim_mask_pool'
+work_dir = './work_dirs/transformer/j_vanilla_variable_dim_mask_pool/9.23-1'
 find_unused_parameters = False
 auto_resume = False
+seed = 88
 

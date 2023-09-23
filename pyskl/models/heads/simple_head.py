@@ -94,6 +94,10 @@ class SimpleHead(BaseHead):
                 # N, M, dim
                 x = x.mean(dim=1)
 
+            if self.mode == 'TR':
+                # N, M, T, C
+                x = torch.mean(x, [1, 2])
+
         assert x.shape[1] == self.in_c
         if self.dropout is not None:
             x = self.dropout(x)
@@ -181,4 +185,21 @@ class vit2Head(SimpleHead):
                          dropout=dropout,
                          init_std=init_std,
                          mode='vit2',
+                         **kwargs)
+@HEADS.register_module()
+class TRHead(SimpleHead):
+
+    def __init__(self,
+                 num_classes,
+                 in_channels,
+                 loss_cls=dict(type='CrossEntropyLoss'),
+                 dropout=0.5,
+                 init_std=0.01,
+                 **kwargs):
+        super().__init__(num_classes,
+                         in_channels,
+                         loss_cls=loss_cls,
+                         dropout=dropout,
+                         init_std=init_std,
+                         mode='TR',
                          **kwargs)
