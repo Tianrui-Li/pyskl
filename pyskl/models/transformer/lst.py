@@ -4,7 +4,7 @@ This implementation is based on Pytorch transformer version.
 
 import torch
 import torch.nn as nn
-from einops import rearrange, pack, unpack
+from einops import rearrange, pack
 import math
 
 from ..builder import BACKBONES
@@ -25,6 +25,7 @@ def sliding_window_attention_mask(
     Returns:
     - mask: A seq_len x seq_len mask where 0 indicates positions that can be attended to, and -1e9 (or a very large negative value) indicates positions that should not be attended to.
     """
+
     def fn(seq_len, window_size, neighborhood_size):
         mask = torch.full((seq_len, seq_len), torch.finfo(dtype).min)
 
@@ -50,9 +51,124 @@ def sliding_window_attention_mask(
     return mask
 
 
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        if hasattr(m, 'weight'):
+            nn.init.kaiming_normal_(m.weight, mode='fan_out')
+        if hasattr(m, 'bias') and m.bias is not None and isinstance(m.bias, torch.Tensor):
+            nn.init.constant_(m.bias, 0)
+    elif classname.find('BatchNorm') != -1:
+        if hasattr(m, 'weight') and m.weight is not None:
+            m.weight.data.normal_(1.0, 0.02)
+        if hasattr(m, 'bias') and m.bias is not None:
+            m.bias.data.fill_(0)
+
+
+class TemporalConv(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, dilation=1):
+        super(TemporalConv, self).__init__()
+        pad = (kernel_size + (kernel_size - 1) * (dilation - 1) - 1) // 2
+        self.conv = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=(kernel_size, 1),
+            padding=(pad, 0),
+            stride=(stride, 1),
+            dilation=(dilation, 1),
+        )
+
+        self.bn = nn.BatchNorm2d(out_channels)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        return x
+
+
+class MultiScale_TemporalConv(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size=3,
+                 stride=1,
+                 dilations=[1, 2, 3, 4],
+                 residual=False,
+                 residual_kernel_size=1):
+
+        super().__init__()
+        assert out_channels % (len(dilations) + 2) == 0, '# out channels should be multiples of # branches'
+
+        # Multiple branches of temporal convolution
+        self.num_branches = len(dilations) + 2
+        branch_channels = out_channels // self.num_branches
+        if type(kernel_size) == list:
+            assert len(kernel_size) == len(dilations)
+        else:
+            kernel_size = [kernel_size] * len(dilations)
+        # Temporal Convolution branches
+        self.branches = nn.ModuleList([
+            nn.Sequential(
+                nn.Conv2d(
+                    in_channels,
+                    branch_channels,
+                    kernel_size=1,
+                    padding=0
+                ),
+                nn.BatchNorm2d(branch_channels),
+                nn.ReLU(inplace=True),
+                TemporalConv(
+                    branch_channels,
+                    branch_channels,
+                    kernel_size=ks,
+                    stride=stride,
+                    dilation=dilation
+                ),
+            )
+            for ks, dilation in zip(kernel_size, dilations)
+        ])
+
+        # Additional Max & 1x1 branch
+        self.branches.append(nn.Sequential(
+            nn.Conv2d(in_channels, branch_channels, kernel_size=1, padding=0),
+            nn.BatchNorm2d(branch_channels),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=(3, 1), stride=(stride, 1), padding=(1, 0)),
+            nn.BatchNorm2d(branch_channels)  # 为什么还要加bn
+        ))
+
+        self.branches.append(nn.Sequential(
+            nn.Conv2d(in_channels, branch_channels, kernel_size=1, padding=0, stride=(stride, 1)),
+            nn.BatchNorm2d(branch_channels)
+        ))
+
+        # Residual connection
+        if not residual:
+            self.residual = lambda x: 0
+        elif (in_channels == out_channels) and (stride == 1):
+            self.residual = lambda x: x
+        else:
+            self.residual = TemporalConv(in_channels, out_channels, kernel_size=residual_kernel_size, stride=stride)
+        # print(len(self.branches))
+        # initialize
+        self.apply(weights_init)
+
+    def forward(self, x):
+        # Input dim: (N,C,T,V)
+        res = self.residual(x)
+        branch_outs = []
+        for tempconv in self.branches:
+            out = tempconv(x)
+            branch_outs.append(out)
+
+        out = torch.cat(branch_outs, dim=1)
+        out += res
+        return out
+
+
 class TemporalPooling(nn.Module):
     def __init__(self, dim_in, dim_out, kernel_size, stride, pooling=False,
-                 with_cls=True):
+                 with_cls=True, dilations=[1, 2]):
         super().__init__()
         self.pooling = pooling
         self.with_cls = with_cls
@@ -61,7 +177,11 @@ class TemporalPooling(nn.Module):
         elif pooling:
             if with_cls:
                 self.cls_mapping = nn.Linear(dim_in, dim_out)
-            self.temporal_pool = unit_tcn(dim_in, dim_out, kernel_size, stride)
+            # self.temporal_pool = unit_tcn(dim_in, dim_out, kernel_size, stride)
+            self.temporal_pool = MultiScale_TemporalConv(dim_in, dim_out, kernel_size=kernel_size, stride=stride,
+                                                         dilations=dilations,
+                                                         #  residual=True has worse performance in the end
+                                                         residual=False)
         else:
             self.temporal_pool = nn.Linear(dim_in, dim_out)
 
@@ -93,6 +213,7 @@ class TemporalPooling(nn.Module):
 class LST(nn.Module):
     """Locality-aware Spatial-Temporal Transformer
     """
+
     def __init__(
             self,
             in_channels=3,
@@ -148,7 +269,7 @@ class LST(nn.Module):
             self.layers.append(nn.ModuleList([
                 # Temporal pool
                 TemporalPooling(
-                    dim_in, dim_out, 3, dim_mul_factor,
+                    dim_in, dim_out, 5, dim_mul_factor,
                     pooling=temporal_pooling, with_cls=use_cls),
                 # Transformer encoder
                 nn.TransformerEncoderLayer(
