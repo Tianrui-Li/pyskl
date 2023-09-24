@@ -62,20 +62,33 @@ data = dict(
     val=dict(type=dataset_type, ann_file=ann_file, pipeline=val_pipeline, split='xsub_val'),
     test=dict(type=dataset_type, ann_file=ann_file, pipeline=test_pipeline, split='xsub_val'))
 
+# # optimizer
+# # optimizer = dict(type='Adam', lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.0005, amsgrad=False)
+# optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005, nesterov=True)
+# optimizer_config = dict(grad_clip=None)
+# # learning policy
+# lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 # optimizer
-# optimizer = dict(type='Adam', lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.0005, amsgrad=False)
-optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005, nesterov=True)
-optimizer_config = dict(grad_clip=None)
+optimizer = dict(type='AdamW', lr=0.0001, weight_decay=0.01)
+optimizer_config = dict(grad_clip=dict(max_norm=3.0, norm_type=2))
 # learning policy
-lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
+# lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
+lr_config = dict(
+    policy='CosineAnnealing',
+    warmup='linear',
+    warmup_by_epoch=True,
+    warmup_iters=10,
+    warmup_ratio=1.0 / 100,
+    min_lr_ratio=1e-6)
+
 total_epochs = 60
 checkpoint_config = dict(interval=1)
 evaluation = dict(interval=1, metrics=['top_k_accuracy'])
-log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
+log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='WandbLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j2/9.13-tm2-5'
+work_dir = './work_dirs/transformer/j2/9.26-tm2-1'
 
 auto_resume = False
 seed = 88
