@@ -1,5 +1,5 @@
-import wandb
-wandb.init(project='ViViT2')
+# import wandb
+# wandb.init(project='ViViT2')
 
 model = dict(
     type='RecognizerGCN',
