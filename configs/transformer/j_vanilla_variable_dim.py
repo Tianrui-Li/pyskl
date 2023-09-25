@@ -9,6 +9,7 @@ model = dict(
         dim_mul_layers=(4, 7),
         temporal_pooling=False,
         sliding_window=False,
+        graph_cfg=dict(layout='nturgb+d', mode='spatial'),
     ),
     cls_head=dict(type='TRHead', num_classes=60, in_channels=256, dropout=0.))
 
