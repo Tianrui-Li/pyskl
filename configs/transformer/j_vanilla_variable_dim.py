@@ -7,7 +7,7 @@ model = dict(
         type='LST',
         hidden_dim=64,
         dim_mul_layers=(4, 7),
-        temporal_pooling=False,
+        temporal_pooling=True,
         sliding_window=False,
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
     ),
