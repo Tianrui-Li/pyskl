@@ -3,13 +3,98 @@ This implementation is based on Pytorch transformer version.
 """
 
 import torch
-import torch.nn as nn
+from torch import nn, einsum
 from einops import rearrange, pack
 import math
 
 from ..builder import BACKBONES
 from .utils import PositionalEncoding
 from ..gcns import unit_tcn
+import torch.nn.functional as F
+
+
+class Attention(nn.Module):
+    def __init__(self, dim, num_heads=8, attention_dropout=0.1, projection_dropout=0.1):
+        super().__init__()
+        self.heads = num_heads
+        head_dim = dim // self.heads
+        self.scale = head_dim ** -0.5
+
+        self.qkv = nn.Linear(dim, dim * 3, bias=False)
+        self.attn_drop = nn.Dropout(attention_dropout)
+        self.proj = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(projection_dropout)
+
+    def forward(self, x):
+        B, N, C = x.shape
+
+        qkv = self.qkv(x).chunk(3, dim = -1)
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = self.heads), qkv)
+
+        q = q * self.scale
+
+        attn = einsum('b h i d, b h j d -> b h i j', q, k)
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+
+        x = einsum('b h i j, b h j d -> b h i d', attn, v)
+        x = rearrange(x, 'b h n d -> b n (h d)')
+
+        return self.proj_drop(self.proj(x))
+
+
+class DropPath(nn.Module):
+    def __init__(self, drop_prob=None):
+        super().__init__()
+        self.drop_prob = float(drop_prob)
+
+    def forward(self, x):
+        batch, drop_prob, device, dtype = x.shape[0], self.drop_prob, x.device, x.dtype
+
+        if drop_prob <= 0. or not self.training:
+            return x
+
+        keep_prob = 1 - self.drop_prob
+        shape = (batch, *((1,) * (x.ndim - 1)))
+
+        keep_mask = torch.zeros(shape, device = device).float().uniform_(0, 1) < keep_prob
+        output = x.div(keep_prob) * keep_mask.float()
+        return output
+
+
+
+class TransformerEncoderLayer(nn.Module):
+    """
+    Inspired by torch.nn.TransformerEncoderLayer and
+    rwightman's timm package.
+    """
+    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
+                 attention_dropout=0.1, drop_path_rate=0.1):
+        super().__init__()
+
+        self.pre_norm = nn.LayerNorm(d_model)
+        self.self_attn = Attention(dim=d_model, num_heads=nhead,
+                                   attention_dropout=attention_dropout, projection_dropout=dropout)
+
+        self.linear1  = nn.Linear(d_model, dim_feedforward)
+        self.dropout1 = nn.Dropout(dropout)
+        self.norm1    = nn.LayerNorm(d_model)
+        self.linear2  = nn.Linear(dim_feedforward, d_model)
+        self.dropout2 = nn.Dropout(dropout)
+
+        self.drop_path = DropPath(drop_path_rate)
+
+        self.activation = F.gelu
+
+    def forward(self, src, *args, **kwargs):
+        src = src + self.drop_path(self.self_attn(self.pre_norm(src)))
+        src = self.norm1(src)
+        src2 = self.linear2(self.dropout1(self.activation(self.linear1(src))))
+        src = src + self.drop_path(self.dropout2(src2))
+        return src
+
+
+
 
 
 def sliding_window_attention_mask(
@@ -177,11 +262,11 @@ class TemporalPooling(nn.Module):
         elif pooling:
             if with_cls:
                 self.cls_mapping = nn.Linear(dim_in, dim_out)
-            # self.temporal_pool = unit_tcn(dim_in, dim_out, kernel_size, stride)
-            self.temporal_pool = MultiScale_TemporalConv(dim_in, dim_out, kernel_size=kernel_size, stride=stride,
-                                                         dilations=dilations,
-                                                         #  residual=True has worse performance in the end
-                                                         residual=False)
+            self.temporal_pool = unit_tcn(dim_in, dim_out, kernel_size, stride)
+            # self.temporal_pool = MultiScale_TemporalConv(dim_in, dim_out, kernel_size=kernel_size, stride=stride,
+            #                                              dilations=dilations,
+            #                                              #  residual=True has worse performance in the end
+            #                                              residual=False)
         else:
             self.temporal_pool = nn.Linear(dim_in, dim_out)
 
@@ -225,7 +310,10 @@ class LST(nn.Module):
             mlp_ratio=4,
             norm_first=False,
             activation='relu',
+            attention_dropout=0.1,
+            stochastic_depth_rate=0.1,
             dropout=0.1,
+            dropout_rate=0.,
             use_cls=True,
             layer_norm_eps=1e-6,
             max_joints=25,
@@ -261,6 +349,9 @@ class LST(nn.Module):
             hidden_dims.append((dim_in, dim_out))
             dim_in = dim_out
 
+        dpr = [x.item() for x in torch.linspace(0, stochastic_depth_rate, depth)]
+        dpr_iter = iter(dpr)
+
         # Transformer Encoder
         self.layers = nn.ModuleList([])
         mlp_ratio = int(mlp_ratio)
@@ -269,13 +360,17 @@ class LST(nn.Module):
             self.layers.append(nn.ModuleList([
                 # Temporal pool
                 TemporalPooling(
-                    dim_in, dim_out, 5, dim_mul_factor,
+                    dim_in, dim_out, 3, dim_mul_factor,
                     pooling=temporal_pooling, with_cls=use_cls),
-                # Transformer encoder
-                nn.TransformerEncoderLayer(
-                    dim_out, num_heads, dim_out * mlp_ratio, dropout,
-                    activation, layer_norm_eps, batch_first=True,
-                    norm_first=norm_first)
+                # # Transformer encoder
+                # nn.TransformerEncoderLayer(
+                #     dim_out, num_heads, dim_out * mlp_ratio, dropout,
+                #     activation, layer_norm_eps, batch_first=True,
+                #     norm_first=norm_first)
+                TransformerEncoderLayer(d_model=dim_out, nhead=num_heads,
+                                        dim_feedforward=dim_out * mlp_ratio, dropout=dropout_rate,
+                                        attention_dropout=attention_dropout, drop_path_rate=next(dpr_iter))
+
             ]))
 
         # Variable locality-aware mask

@@ -72,7 +72,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='W
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j_vanilla_variable_dim_mask_pool/9.23-1'
+work_dir = './work_dirs/transformer/j_vanilla_variable_dim_mask_pool/9.23-2'
 find_unused_parameters = False
 auto_resume = False
 seed = 88
