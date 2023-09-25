@@ -6,6 +6,7 @@ import torch
 from torch import nn, einsum
 from einops import rearrange, pack
 import math
+from ...utils import Graph
 
 from ..builder import BACKBONES
 from .utils import PositionalEncoding
@@ -301,6 +302,7 @@ class LST(nn.Module):
 
     def __init__(
             self,
+            graph_cfg,
             in_channels=3,
             hidden_dim=64,
             dim_mul_layers=(4, 7),
@@ -322,6 +324,10 @@ class LST(nn.Module):
             sliding_window=False,
     ):
         super().__init__()
+
+        graph = Graph(**graph_cfg)
+        A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
+        self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
 
         self.embd_layer = nn.Linear(in_channels, hidden_dim)
         self.norm_first = norm_first
@@ -393,7 +399,12 @@ class LST(nn.Module):
 
     def forward(self, x):
         N, M, T, V, C = x.size()
-        x = rearrange(x, 'n m t v c -> (n m) t v c')
+
+        x = x.permute(0, 1, 3, 4, 2).contiguous()
+        x = self.data_bn(x.view(N * M, V * C, T))
+        x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M, T, V, C)
+
+        # x = rearrange(x, 'n m t v c -> (n m) t v c')
 
         # embed the inputs, orig dim -> hidden dim
         x_embd = self.embd_layer(x)
