@@ -6,7 +6,7 @@ import torch
 from torch import nn, einsum
 from einops import rearrange, pack
 import math
-from ...utils import Graph
+# from ...utils import Graph
 
 from ..builder import BACKBONES
 from .utils import PositionalEncoding
@@ -302,7 +302,7 @@ class LST(nn.Module):
 
     def __init__(
             self,
-            graph_cfg,
+            # graph_cfg,
             in_channels=3,
             hidden_dim=64,
             dim_mul_layers=(4, 7),
@@ -325,10 +325,10 @@ class LST(nn.Module):
     ):
         super().__init__()
 
-        # Batch_normalization
-        graph = Graph(**graph_cfg)
-        A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
-        self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
+        # # Batch_normalization
+        # graph = Graph(**graph_cfg)
+        # A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
+        # self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
 
         self.embd_layer = nn.Linear(in_channels, hidden_dim)
         self.norm_first = norm_first
