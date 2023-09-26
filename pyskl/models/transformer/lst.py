@@ -325,6 +325,7 @@ class LST(nn.Module):
     ):
         super().__init__()
 
+        # Batch_normalization
         graph = Graph(**graph_cfg)
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
         self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
@@ -400,11 +401,11 @@ class LST(nn.Module):
     def forward(self, x):
         N, M, T, V, C = x.size()
 
-        x = x.permute(0, 1, 3, 4, 2).contiguous()
-        x = self.data_bn(x.view(N * M, V * C, T))
-        x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M, T, V, C)
+        # x = x.permute(0, 1, 3, 4, 2).contiguous()
+        # x = self.data_bn(x.view(N * M, V * C, T))
+        # x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M, T, V, C)
 
-        # x = rearrange(x, 'n m t v c -> (n m) t v c')
+        x = rearrange(x, 'n m t v c -> (n m) t v c')
 
         # embed the inputs, orig dim -> hidden dim
         x_embd = self.embd_layer(x)

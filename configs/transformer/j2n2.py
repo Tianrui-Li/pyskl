@@ -23,7 +23,7 @@ train_pipeline = [
     dict(type='RandomRot'),
     # dict(type='RandomRot', theta=0.2),
     dict(type='GenSkeFeat', dataset='nturgb+d', feats=['j']),
-    dict(type='STTSample', clip_len=56, p_interval=(0.5, 1)),
+    # dict(type='STTSample', clip_len=56, p_interval=(0.5, 1)),
     dict(type='UniformSample', clip_len=clip_len),
     dict(type='PoseDecode'),
     dict(type='FormatGCNInput', num_person=2),
@@ -33,7 +33,7 @@ train_pipeline = [
 val_pipeline = [
     dict(type='PreNormalize3D'),
     dict(type='GenSkeFeat', dataset='nturgb+d', feats=['j']),
-    dict(type='STTSample', clip_len=56, p_interval=(0.5, 1)),
+    # dict(type='STTSample', clip_len=56, p_interval=(0.5, 1)),
     dict(type='UniformSample', clip_len=clip_len, num_clips=1),
     dict(type='PoseDecode'),
     dict(type='FormatGCNInput', num_person=2),
@@ -43,7 +43,7 @@ val_pipeline = [
 test_pipeline = [
     dict(type='PreNormalize3D'),
     dict(type='GenSkeFeat', dataset='nturgb+d', feats=['j']),
-    dict(type='STTSample', clip_len=56, p_interval=(0.5, 1)),
+    # dict(type='STTSample', clip_len=56, p_interval=(0.5, 1)),
     dict(type='UniformSample', clip_len=clip_len, num_clips=10),
     dict(type='PoseDecode'),
     dict(type='FormatGCNInput', num_person=2),
@@ -86,7 +86,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='W
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j2/9.26-tm2-2'
+work_dir = './work_dirs/transformer/j2/9.26-tm2-3'
 
 auto_resume = False
 seed = 88
