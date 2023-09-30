@@ -84,10 +84,11 @@ class TransformerEncoderLayer(nn.Module):
 
     def forward(self, src, *args, **kwargs):
         # pre-norm
-        # src = src + self.drop_path(self.self_attn(self.pre_norm(src)))
-        # post-norm
-        # change the norm_first parameter!
-        src = self.drop_path(self.pre_norm(src + self.self_attn(src)))
+        src = src + self.drop_path(self.self_attn(self.pre_norm(src)))
+
+        # # post-norm
+        # # change the norm_first parameter!
+        # src = self.drop_path(self.pre_norm(src + self.self_attn(src)))
 
         src = self.norm1(src)
         src2 = self.linear2(self.dropout1(self.activation(self.linear1(src))))
