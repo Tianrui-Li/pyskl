@@ -55,10 +55,10 @@ data = dict(
     test=dict(type=dataset_type, ann_file=ann_file, pipeline=test_pipeline, split='xsub_val'))
 
 # optimizer
-# optimizer = dict(type='AdamW', lr=0.0001, weight_decay=0.01)
-# optimizer_config = dict(grad_clip=dict(max_norm=3.0, norm_type=2))
-optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005, nesterov=True)
-optimizer_config = dict(grad_clip=None)
+optimizer = dict(type='AdamW', lr=0.0001, weight_decay=0.01)
+optimizer_config = dict(grad_clip=dict(max_norm=3.0, norm_type=2))
+# optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005, nesterov=True)
+# optimizer_config = dict(grad_clip=None)
 # learning policy
 # lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 lr_config = dict(
@@ -70,12 +70,12 @@ lr_config = dict(
     min_lr_ratio=1e-6)
 total_epochs = 80
 checkpoint_config = dict(interval=1)
-evaluation = dict(interval=4, metrics=['top_k_accuracy'])
+evaluation = dict(interval=2, metrics=['top_k_accuracy'])
 log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='WandbLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/9.23-8'
+work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/9.30-1'
 find_unused_parameters = False
 auto_resume = False
 seed = 88

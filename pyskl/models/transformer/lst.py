@@ -7,26 +7,30 @@ from torch import nn, einsum
 from .utils import PositionalEncoding
 from ..gcns import unit_tcn
 from ..builder import BACKBONES
+
+
 # from ...utils import Graph
 
 
 class Attention(nn.Module):
     def __init__(self, dim, num_heads=8, attention_dropout=0.1, projection_dropout=0.1):
         super().__init__()
+
         self.heads = num_heads
         head_dim = dim // self.heads
         self.scale = head_dim ** -0.5
 
-        self.qkv = nn.Linear(dim, dim * 3, bias=False)
         self.attn_drop = nn.Dropout(attention_dropout)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(projection_dropout)
 
+        self.qkv = nn.Linear(dim, dim * 3, bias=False)
+
     def forward(self, x):
         B, N, C = x.shape
 
-        qkv = self.qkv(x).chunk(3, dim = -1)
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = self.heads), qkv)
+        qkv = self.qkv(x).chunk(3, dim=-1)
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads), qkv)
 
         q = q * self.scale
 
@@ -47,23 +51,20 @@ class DropPath(nn.Module):
 
     def forward(self, x):
         batch, drop_prob, device, dtype = x.shape[0], self.drop_prob, x.device, x.dtype
-
         if drop_prob <= 0. or not self.training:
             return x
-
         keep_prob = 1 - self.drop_prob
         shape = (batch, *((1,) * (x.ndim - 1)))
-
-        keep_mask = torch.zeros(shape, device = device).float().uniform_(0, 1) < keep_prob
+        keep_mask = torch.zeros(shape, device=device).float().uniform_(0, 1) < keep_prob
         output = x.div(keep_prob) * keep_mask.float()
         return output
 
 
-
 class TransformerEncoderLayer(nn.Module):
     """
-    Inspired by torch.nn.TransformerEncoderLayer and
-    rwightman's timm package.
+    From cct, vit-pytorch
+
+    Inspired by torch.nn.TransformerEncoderLayer and rwightman's timm package.
     """
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
                  attention_dropout=0.1, drop_path_rate=0.1):
@@ -73,14 +74,12 @@ class TransformerEncoderLayer(nn.Module):
         self.self_attn = Attention(dim=d_model, num_heads=nhead,
                                    attention_dropout=attention_dropout, projection_dropout=dropout)
 
-        self.linear1  = nn.Linear(d_model, dim_feedforward)
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout1 = nn.Dropout(dropout)
-        self.norm1    = nn.LayerNorm(d_model)
-        self.linear2  = nn.Linear(dim_feedforward, d_model)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
         self.dropout2 = nn.Dropout(dropout)
-
         self.drop_path = DropPath(drop_path_rate)
-
         self.activation = F.gelu
 
     def forward(self, src, *args, **kwargs):
@@ -89,9 +88,6 @@ class TransformerEncoderLayer(nn.Module):
         src2 = self.linear2(self.dropout1(self.activation(self.linear1(src))))
         src = src + self.drop_path(self.dropout2(src2))
         return src
-
-
-
 
 
 def sliding_window_attention_mask(
@@ -293,12 +289,12 @@ class TemporalPooling(nn.Module):
 
 @BACKBONES.register_module()
 class LST(nn.Module):
-    """Locality-aware Spatial-Temporal Transformer
     """
+    Locality-aware Spatial-Temporal Transformer
 
+    """
     def __init__(
             self,
-            # graph_cfg,
             in_channels=3,
             hidden_dim=64,
             dim_mul_layers=(4, 7),
@@ -307,10 +303,8 @@ class LST(nn.Module):
             num_heads=4,
             mlp_ratio=4,
             norm_first=False,
-            activation='relu',
             attention_dropout=0.1,
             stochastic_depth_rate=0.1,
-            dropout=0.1,
             dropout_rate=0.,
             use_cls=True,
             layer_norm_eps=1e-6,
@@ -318,6 +312,9 @@ class LST(nn.Module):
             max_frames=100,
             temporal_pooling=True,
             sliding_window=False,
+            # activation='relu',
+            # dropout=0.1,
+            # graph_cfg,
     ):
         super().__init__()
 
