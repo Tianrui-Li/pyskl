@@ -1,17 +1,13 @@
-"""Locality-aware Spatiotemporal Transformer
-This implementation is based on Pytorch transformer version.
-"""
-
-import torch
-from torch import nn, einsum
-from einops import rearrange, pack
 import math
-# from ...utils import Graph
+import torch
+import torch.nn.functional as F
 
-from ..builder import BACKBONES
+from einops import rearrange, pack
+from torch import nn, einsum
 from .utils import PositionalEncoding
 from ..gcns import unit_tcn
-import torch.nn.functional as F
+from ..builder import BACKBONES
+# from ...utils import Graph
 
 
 class Attention(nn.Module):
