@@ -302,7 +302,7 @@ class LST(nn.Module):
             depth=10,
             num_heads=4,
             mlp_ratio=4,
-            norm_first=False,
+            norm_first=True,
             attention_dropout=0.1,
             stochastic_depth_rate=0.1,
             dropout_rate=0.,
@@ -349,6 +349,7 @@ class LST(nn.Module):
             hidden_dims.append((dim_in, dim_out))
             dim_in = dim_out
 
+        # dropout iter
         dpr = [x.item() for x in torch.linspace(0, stochastic_depth_rate, depth)]
         dpr_iter = iter(dpr)
 
