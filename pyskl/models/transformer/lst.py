@@ -83,7 +83,12 @@ class TransformerEncoderLayer(nn.Module):
         self.activation = F.gelu
 
     def forward(self, src, *args, **kwargs):
-        src = src + self.drop_path(self.self_attn(self.pre_norm(src)))
+        # pre-norm
+        # src = src + self.drop_path(self.self_attn(self.pre_norm(src)))
+        # post-norm
+        # change the norm_first parameter!
+        src = self.drop_path(self.pre_norm(src + self.self_attn(src)))
+
         src = self.norm1(src)
         src2 = self.linear2(self.dropout1(self.activation(self.linear1(src))))
         src = src + self.drop_path(self.dropout2(src2))
@@ -302,7 +307,7 @@ class LST(nn.Module):
             depth=10,
             num_heads=4,
             mlp_ratio=4,
-            norm_first=True,
+            norm_first=False,
             attention_dropout=0.1,
             stochastic_depth_rate=0.1,
             dropout_rate=0.,
