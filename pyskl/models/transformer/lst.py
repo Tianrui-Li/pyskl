@@ -66,6 +66,7 @@ class TransformerEncoderLayer(nn.Module):
 
     Inspired by torch.nn.TransformerEncoderLayer and rwightman's timm package.
     """
+
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
                  attention_dropout=0.1, drop_path_rate=0.1):
         super().__init__()
@@ -299,6 +300,7 @@ class LST(nn.Module):
     Locality-aware Spatial-Temporal Transformer
 
     """
+
     def __init__(
             self,
             in_channels=3,
@@ -308,6 +310,8 @@ class LST(nn.Module):
             depth=10,
             num_heads=4,
             mlp_ratio=4,
+            kernel_size=3,
+            stride=2,
             norm_first=False,
             attention_dropout=0.1,
             stochastic_depth_rate=0.1,
@@ -367,7 +371,7 @@ class LST(nn.Module):
             self.layers.append(nn.ModuleList([
                 # Temporal pool
                 TemporalPooling(
-                    dim_in, dim_out, 3, dim_mul_factor,
+                    dim_in, dim_out, kernel_size, stride,
                     pooling=temporal_pooling, with_cls=use_cls),
                 # # Transformer encoder
                 # nn.TransformerEncoderLayer(
@@ -388,7 +392,9 @@ class LST(nn.Module):
                 nb_size = nb_size + (dim_in == dim_out)
                 self.neighborhood_sizes.append(nb_size)
 
-        self.norm = (nn.LayerNorm(hidden_dims[-1][-1], eps=layer_norm_eps)
+        # self.norm = (nn.LayerNorm(hidden_dims[-1][-1], eps=layer_norm_eps)
+        #              if norm_first else None)
+        self.norm = (nn.LayerNorm(hidden_dims[-1][-1])
                      if norm_first else None)
 
         self.init_weights()
