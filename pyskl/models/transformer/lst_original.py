@@ -322,6 +322,8 @@ class LST_original(nn.Module):
             max_frames=100,
             temporal_pooling=True,
             sliding_window=False,
+            stride1=3,
+            kernel_size1=5,
     ):
         super().__init__()
 
@@ -367,7 +369,7 @@ class LST_original(nn.Module):
             self.layers.append(nn.ModuleList([
                 # Temporal pool
                 TemporalPooling(
-                    dim_in, dim_out, 3, dim_mul_factor,
+                    dim_in, dim_out, kernel_size1, stride1,
                     pooling=temporal_pooling, with_cls=use_cls),
                 # # Transformer encoder
                 # nn.TransformerEncoderLayer(

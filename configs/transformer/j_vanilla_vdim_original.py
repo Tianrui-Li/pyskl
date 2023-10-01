@@ -10,8 +10,8 @@ model = dict(
         temporal_pooling=True,
         sliding_window=False,
         norm_first=True,
-        stride=3,
-        kernel_size=5,
+        stride1=3,
+        kernel_size1=5,
         # graph_cfg=dict(layout='nturgb+d', mode='spatial'),
     ),
     cls_head=dict(type='TRHead', num_classes=60, in_channels=256, dropout=0.))
