@@ -70,9 +70,10 @@ class Attention(nn.Module):
         attn = self.attn_drop(attn)
 
         x = einsum('b h i j, b h j d -> b h i d', attn, v)
-        x = rearrange(x, 'b h (t v) d -> b t v (h d)', t=T, v=V)
-
-        return self.proj_drop(self.proj(x))
+        x = rearrange(x, 'b h (t v) d -> b (h d) t v', t=T, v=V)
+        x = self.proj(x)
+        x = rearrange(x, 'b (h d) t v -> b t v (h d)')
+        return self.proj_drop(x)
 
 
 class DropPath(nn.Module):
