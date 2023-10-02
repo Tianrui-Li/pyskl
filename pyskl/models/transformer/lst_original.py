@@ -72,7 +72,7 @@ class Attention(nn.Module):
         x = einsum('b h i j, b h j d -> b h i d', attn, v)
         x = rearrange(x, 'b h (t v) d -> b (h d) t v', t=T, v=V)
         x = self.proj(x)
-        x = rearrange(x, 'b (h d) t v -> b t v (h d)')
+        x = rearrange(x, 'b (h d) t v -> b t v (h d)',h=self.heads)
         return self.proj_drop(x)
 
 
@@ -104,7 +104,7 @@ class TransformerEncoderLayer(nn.Module):
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
                  attention_dropout=0.1, drop_path_rate=0.1):
         super().__init__()
-
+        self.heads = nhead
         self.pre_norm = nn.LayerNorm(d_model)
         self.self_attn = Attention(dim=d_model, num_heads=nhead,
                                    attention_dropout=attention_dropout, projection_dropout=dropout)
@@ -127,9 +127,9 @@ class TransformerEncoderLayer(nn.Module):
         src = src + self.drop_path(self.self_attn(self.pre_norm(src)))
         src = self.norm1(src)
         # src2 = self.linear2(self.dropout1(self.activation(self.linear1(src))))
-        src = rearrange(src, 'b t v (h d) -> b (h d) t v')
+        src = rearrange(src, 'b t v (h d) -> b (h d) t v',h=self.heads)
         src2 = self.conv2(self.dropout1(self.activation(self.conv1(src))))
-        src = rearrange(src2, 'b (h d) t v -> b t v (h d)')
+        src = rearrange(src2, 'b (h d) t v -> b t v (h d)',h=self.heads)
         src = src + self.drop_path(self.dropout2(src2))
         return src
 
