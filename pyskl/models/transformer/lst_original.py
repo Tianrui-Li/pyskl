@@ -14,6 +14,26 @@ from ..gcns import unit_tcn
 import torch.nn.functional as F
 
 
+def conv_init(conv):
+    nn.init.kaiming_normal_(conv.weight, mode='fan_out')
+    # nn.init.constant_(conv.bias, 0)
+
+
+def bn_init(bn, scale):
+    nn.init.constant_(bn.weight, scale)
+    nn.init.constant_(bn.bias, 0)
+
+
+def fc_init(fc):
+    nn.init.xavier_normal_(fc.weight)
+    nn.init.constant_(fc.bias, 0)
+
+
+def layernorm_init(layer_norm, scale=1.0):
+    # 初始化 LayerNorm 层的权重和偏置
+    nn.init.constant_(layer_norm.weight, scale)
+    nn.init.constant_(layer_norm.bias, 0)
+
 # from rotary_embedding_torch import RotaryEmbedding
 
 class Attention(nn.Module):
@@ -36,7 +56,8 @@ class Attention(nn.Module):
 
     def forward(self, x):
         B, T, V, C = x.shape
-        q, k, v = self.to_qkv(x).chunk(3, dim=-1)
+        x = x.permute(0, 3, 1, 2)
+        q, k, v = self.qkv(x).chunk(3, dim=-1)
         q, k, v = map(lambda t: rearrange(t, 'b t v (h d) -> b h (t v) d', h=self.heads), (q, k, v))
         q = q * self.scale
 
@@ -408,9 +429,21 @@ class LST_original(nn.Module):
         self.init_weights()
 
     def init_weights(self):
-        for p in self.parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                conv_init(m)
+            elif isinstance(m, nn.BatchNorm2d):
+                bn_init(m, 1)
+            elif isinstance(m, nn.Linear):
+                fc_init(m)
+            elif isinstance(m, nn.LayerNorm):
+                layernorm_init(m, 1)
+
+
+    # def init_weights(self):
+    #     for p in self.parameters():
+    #         if p.dim() > 1:
+    #             nn.init.xavier_uniform_(p)
 
     def forward(self, x):
         N, M, T, V, C = x.size()
@@ -438,7 +471,6 @@ class LST_original(nn.Module):
             cls_token = self.cls_token.expand(x_input.size(0), -1, -1)
             cls_token = cls_token + self.pos_embed_cls
             x_input = torch.cat((cls_token, x_input), dim=1)
-
         hidden_state = x_input
         attn_mask = None
         for i, (temporal_pool, encoder) in enumerate(self.layers):
