@@ -57,8 +57,8 @@ class Attention(nn.Module):
     def forward(self, x):
         B, T, V, C = x.shape
         x = x.permute(0, 3, 1, 2)
-        q, k, v = self.qkv(x).chunk(3, dim=-1)
-        q, k, v = map(lambda t: rearrange(t, 'b t v (h d) -> b h (t v) d', h=self.heads), (q, k, v))
+        q, k, v = self.qkv(x).chunk(3, dim=1)
+        q, k, v = map(lambda t: rearrange(t, 'b (h d) t v -> b h (t v) d', h=self.heads), (q, k, v))
         q = q * self.scale
 
         # # 应用旋转位置编码
