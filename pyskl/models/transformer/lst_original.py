@@ -12,6 +12,8 @@ from ..builder import BACKBONES
 from .utils import PositionalEncoding
 from ..gcns import unit_tcn
 import torch.nn.functional as F
+
+
 # from rotary_embedding_torch import RotaryEmbedding
 
 class Attention(nn.Module):
@@ -23,7 +25,7 @@ class Attention(nn.Module):
 
         # self.qkv = nn.Linear(dim, dim * 3, bias=False)
         # self.proj = nn.Linear(dim, dim)
-        self.to_qkv = nn.Conv2d(dim, dim * 3, 1, bias=False)
+        self.qkv = nn.Conv2d(dim, dim * 3, 1, bias=False)
         self.proj = nn.Conv2d(dim, dim, 1)
 
         self.attn_drop = nn.Dropout(attention_dropout)
@@ -33,14 +35,9 @@ class Attention(nn.Module):
         # self.rotary_emb = RotaryEmbedding(dim=head_dim)
 
     def forward(self, x):
-        B, N, C = x.shape
-
-        # qkv = self.qkv(x).chunk(3, dim = -1)
-        # q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = self.heads), qkv)
-
-        q, k, v = self.to_qkv(x).chunk(3, dim = 1)
-        q, k, v = map(lambda t: rearrange(t, 'b (h d) x y -> b h (x y) d', h = self.heads), (q, k, v))
-
+        B, T, V, C = x.shape
+        q, k, v = self.to_qkv(x).chunk(3, dim=-1)
+        q, k, v = map(lambda t: rearrange(t, 'b t v (h d) -> b h (t v) d', h=self.heads), (q, k, v))
         q = q * self.scale
 
         # # 应用旋转位置编码
@@ -52,7 +49,7 @@ class Attention(nn.Module):
         attn = self.attn_drop(attn)
 
         x = einsum('b h i j, b h j d -> b h i d', attn, v)
-        x = rearrange(x, 'b h n d -> b n (h d)')
+        x = rearrange(x, 'b h (t v) d -> b t v (h d)', t=T, v=V)
 
         return self.proj_drop(self.proj(x))
 
@@ -71,10 +68,9 @@ class DropPath(nn.Module):
         keep_prob = 1 - self.drop_prob
         shape = (batch, *((1,) * (x.ndim - 1)))
 
-        keep_mask = torch.zeros(shape, device = device).float().uniform_(0, 1) < keep_prob
+        keep_mask = torch.zeros(shape, device=device).float().uniform_(0, 1) < keep_prob
         output = x.div(keep_prob) * keep_mask.float()
         return output
-
 
 
 class TransformerEncoderLayer(nn.Module):
@@ -82,6 +78,7 @@ class TransformerEncoderLayer(nn.Module):
     Inspired by torch.nn.TransformerEncoderLayer and
     rwightman's timm package.
     """
+
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
                  attention_dropout=0.1, drop_path_rate=0.1):
         super().__init__()
@@ -92,7 +89,7 @@ class TransformerEncoderLayer(nn.Module):
 
         # self.linear1  = nn.Linear(d_model, dim_feedforward)
         self.dropout1 = nn.Dropout(dropout)
-        self.norm1    = nn.LayerNorm(d_model)
+        self.norm1 = nn.LayerNorm(d_model)
         # self.linear2  = nn.Linear(dim_feedforward, d_model)
         self.dropout2 = nn.Dropout(dropout)
 
@@ -111,9 +108,6 @@ class TransformerEncoderLayer(nn.Module):
         src2 = self.conv2(self.dropout1(self.activation(self.conv1(src))))
         src = src + self.drop_path(self.dropout2(src2))
         return src
-
-
-
 
 
 def sliding_window_attention_mask(
@@ -301,9 +295,9 @@ class TemporalPooling(nn.Module):
                 cls = self.cls_mapping(cls)
 
             # TCN
-            x = rearrange(x, 'b (t v) c -> b c t v', v=v)
+            x = rearrange(x, 'b t v c -> b c t v', v=v)
             x = self.temporal_pool(x)
-            res = rearrange(x, 'b c t v -> b (t v) c')
+            res = rearrange(x, 'b c t v -> b t v c')
 
             # Concat cls token if any
             if self.with_cls:
@@ -334,7 +328,7 @@ class LST_original(nn.Module):
             stochastic_depth_rate=0.1,
             dropout=0.1,
             dropout_rate=0.,
-            use_cls=True,
+            use_cls=False,
             layer_norm_eps=1e-6,
             max_joints=25,
             max_frames=100,
@@ -434,7 +428,7 @@ class LST_original(nn.Module):
         x_input = self.joint_pe(x_embd)  # joint-wise
         x_input = self.frame_pe(rearrange(x_input, 'b t v c -> b v t c'))  # frame wise
         # convert to required dim order
-        x_input = rearrange(x_input, 'b v t c -> b (t v) c')
+        x_input = rearrange(x_input, 'b v t c -> b t v c')
 
         # # 旋转位置编码
         # x_input = rearrange(x_embd, 'b t v c -> b (t v) c')
@@ -469,6 +463,6 @@ class LST_original(nn.Module):
             hidden_state = hidden_state[:, :1, :]
 
         hidden_state = rearrange(
-            hidden_state, '(n m) tv c -> n m tv c', n=N)
+            hidden_state, '(n m) t v c -> n m tv c', n=N)
 
         return hidden_state
