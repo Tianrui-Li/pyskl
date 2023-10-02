@@ -328,8 +328,8 @@ class LST_original(nn.Module):
             max_frames=100,
             temporal_pooling=True,
             sliding_window=False,
-            stride1=3,
-            kernel_size1=5,
+            stride1=2,
+            kernel_size1=3,
     ):
         super().__init__()
 

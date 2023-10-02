@@ -10,8 +10,8 @@ model = dict(
         temporal_pooling=True,
         sliding_window=False,
         norm_first=True,
-        stride1=3,
-        kernel_size1=5,
+        # stride1=3,
+        # kernel_size1=5,
         # graph_cfg=dict(layout='nturgb+d', mode='spatial'),
     ),
     cls_head=dict(type='TRHead', num_classes=60, in_channels=256, dropout=0.))
@@ -50,8 +50,8 @@ test_pipeline = [
     dict(type='ToTensor', keys=['keypoint'])
 ]
 data = dict(
-    videos_per_gpu=32,
-    workers_per_gpu=8,
+    videos_per_gpu=16,
+    workers_per_gpu=4,
     test_dataloader=dict(videos_per_gpu=1),
     train=dict(type=dataset_type, ann_file=ann_file, pipeline=train_pipeline, split='xsub_train'),
     val=dict(type=dataset_type, ann_file=ann_file, pipeline=val_pipeline, split='xsub_val'),
@@ -76,7 +76,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='W
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/9.30-0.1'
+work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/9.30-4'
 find_unused_parameters = False
 auto_resume = False
 seed = 88
