@@ -23,7 +23,7 @@ class Attention(nn.Module):
 
         # self.qkv = nn.Linear(dim, dim * 3, bias=False)
         # self.proj = nn.Linear(dim, dim)
-        self.qkv = nn.Conv2d(dim, dim * 3, 1, bias=False)
+        self.to_qkv = nn.Conv2d(dim, dim * 3, 1, bias=False)
         self.proj = nn.Conv2d(dim, dim, 1)
 
         self.attn_drop = nn.Dropout(attention_dropout)
@@ -35,8 +35,11 @@ class Attention(nn.Module):
     def forward(self, x):
         B, N, C = x.shape
 
-        qkv = self.qkv(x).chunk(3, dim = -1)
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = self.heads), qkv)
+        # qkv = self.qkv(x).chunk(3, dim = -1)
+        # q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = self.heads), qkv)
+
+        q, k, v = self.to_qkv(x).chunk(3, dim = 1)
+        q, k, v = map(lambda t: rearrange(t, 'b (h d) x y -> b h (x y) d', h = self.heads), (q, k, v))
 
         q = q * self.scale
 
