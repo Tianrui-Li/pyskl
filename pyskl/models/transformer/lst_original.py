@@ -26,7 +26,7 @@ class Attention(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(projection_dropout)
 
-        self.rotary_emb = RotaryEmbedding(dim=dim)
+        self.rotary_emb = RotaryEmbedding(dim=head_dim)
 
     def forward(self, x):
         B, N, C = x.shape
