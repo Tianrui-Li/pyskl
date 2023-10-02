@@ -349,9 +349,9 @@ class LST_original(nn.Module):
         self.pos_embed_cls = (nn.Parameter(torch.zeros(1, 1, hidden_dim))
                               if use_cls else None)
 
-        # We use two embeddings, one for joints and one for frames
-        self.joint_pe = PositionalEncoding(hidden_dim, max_joints)
-        self.frame_pe = PositionalEncoding(hidden_dim, max_frames)
+        # # We use two embeddings, one for joints and one for frames
+        # self.joint_pe = PositionalEncoding(hidden_dim, max_joints)
+        # self.frame_pe = PositionalEncoding(hidden_dim, max_frames)
 
         # Variable hidden dim
         hidden_dims = []
