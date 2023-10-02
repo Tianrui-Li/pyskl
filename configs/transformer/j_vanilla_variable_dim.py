@@ -9,9 +9,9 @@ model = dict(
         dim_mul_layers=(4, 7),
         temporal_pooling=True,
         sliding_window=False,
-        # strong pooling
-        stride=3,
-        kernel_size=5,
+        # # strong pooling
+        # stride=3,
+        # kernel_size=5,
         # graph_cfg=dict(layout='nturgb+d', mode='spatial'),
     ),
     cls_head=dict(type='TRHead', num_classes=60, in_channels=256, dropout=0.))

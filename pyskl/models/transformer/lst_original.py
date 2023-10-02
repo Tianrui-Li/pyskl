@@ -421,18 +421,17 @@ class LST_original(nn.Module):
         # # add positional embeddings
         # x_input = self.joint_pe(x_embd)  # joint-wise
         # x_input = self.frame_pe(rearrange(x_input, 'b t v c -> b v t c'))  # frame wise
+        # # convert to required dim order
+        # x_input = rearrange(x_input, 'b v t c -> b (t v) c')
 
         # 旋转位置编码
-        x_input = x_embd
+        x_input = rearrange(x_embd, 'b t v c -> b (t v) c')
 
-        # convert to required dim order
-        x_input = rearrange(x_input, 'b v t c -> b (t v) c')
+
         # prepend the cls token for source if needed
         if self.cls_token is not None:
             cls_token = self.cls_token.expand(x_input.size(0), -1, -1)
-
-            # cls_token = cls_token + self.pos_embed_cls
-
+            cls_token = cls_token + self.pos_embed_cls
             x_input = torch.cat((cls_token, x_input), dim=1)
 
         hidden_state = x_input
