@@ -127,9 +127,9 @@ class TransformerEncoderLayer(nn.Module):
         src = src + self.drop_path(self.self_attn(self.pre_norm(src)))
         src = self.norm1(src)
         # src2 = self.linear2(self.dropout1(self.activation(self.linear1(src))))
-        src = rearrange(src, 'b t v (h d) -> b (h d) t v',h=self.heads)
+        src = rearrange(src, 'b t v d -> b d t v')
         src2 = self.conv2(self.dropout1(self.activation(self.conv1(src))))
-        src = rearrange(src2, 'b (h d) t v -> b t v (h d)',h=self.heads)
+        src = rearrange(src2, 'b d t v -> b t v d')
         src = src + self.drop_path(self.dropout2(src2))
         return src
 
@@ -477,9 +477,11 @@ class LST_original(nn.Module):
         hidden_state = x_input
         attn_mask = None
         for i, (temporal_pool, encoder) in enumerate(self.layers):
+            hidden_state = rearrange(hidden_state, 'b t v c -> b (t v) c', v=V)
             # Temporal pooling
             hidden_state = temporal_pool(hidden_state, v=V)
 
+            hidden_state = rearrange(hidden_state, 'b (t v) c -> b t v c', v=V)
             # Construct attention mask if required
             if self.sliding_window:
                 attn_mask = sliding_window_attention_mask(
@@ -498,6 +500,6 @@ class LST_original(nn.Module):
             hidden_state = hidden_state[:, :1, :]
 
         hidden_state = rearrange(
-            hidden_state, '(n m) t v c -> n m tv c', n=N)
+            hidden_state, '(n m) t v c -> n m (t v) c', n=N)
 
         return hidden_state
