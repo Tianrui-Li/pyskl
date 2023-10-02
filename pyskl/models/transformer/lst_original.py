@@ -12,7 +12,7 @@ from ..builder import BACKBONES
 from .utils import PositionalEncoding
 from ..gcns import unit_tcn
 import torch.nn.functional as F
-
+from rotary_embedding_torch import RotaryEmbedding
 
 class Attention(nn.Module):
     def __init__(self, dim, num_heads=8, attention_dropout=0.1, projection_dropout=0.1):
@@ -26,6 +26,8 @@ class Attention(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(projection_dropout)
 
+        self.rotary_emb = RotaryEmbedding(dim=dim)
+
     def forward(self, x):
         B, N, C = x.shape
 
@@ -33,6 +35,10 @@ class Attention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = self.heads), qkv)
 
         q = q * self.scale
+
+        # 应用旋转位置编码
+        q = self.rotary_emb.rotate_queries_or_keys(q)
+        k = self.rotary_emb.rotate_queries_or_keys(k)
 
         attn = einsum('b h i d, b h j d -> b h i j', q, k)
         attn = attn.softmax(dim=-1)
@@ -412,9 +418,12 @@ class LST_original(nn.Module):
         # embed the inputs, orig dim -> hidden dim
         x_embd = self.embd_layer(x)
 
-        # add positional embeddings
-        x_input = self.joint_pe(x_embd)  # joint-wise
-        x_input = self.frame_pe(rearrange(x_input, 'b t v c -> b v t c'))  # frame wise
+        # # add positional embeddings
+        # x_input = self.joint_pe(x_embd)  # joint-wise
+        # x_input = self.frame_pe(rearrange(x_input, 'b t v c -> b v t c'))  # frame wise
+
+        # 旋转位置编码
+        x_input = x_embd
 
         # convert to required dim order
         x_input = rearrange(x_input, 'b v t c -> b (t v) c')
