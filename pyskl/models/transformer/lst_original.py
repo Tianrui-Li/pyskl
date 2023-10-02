@@ -12,7 +12,7 @@ from ..builder import BACKBONES
 from .utils import PositionalEncoding
 from ..gcns import unit_tcn
 import torch.nn.functional as F
-from rotary_embedding_torch import RotaryEmbedding
+# from rotary_embedding_torch import RotaryEmbedding
 
 class Attention(nn.Module):
     def __init__(self, dim, num_heads=8, attention_dropout=0.1, projection_dropout=0.1):
@@ -21,12 +21,16 @@ class Attention(nn.Module):
         head_dim = dim // self.heads
         self.scale = head_dim ** -0.5
 
-        self.qkv = nn.Linear(dim, dim * 3, bias=False)
+        # self.qkv = nn.Linear(dim, dim * 3, bias=False)
+        # self.proj = nn.Linear(dim, dim)
+        self.qkv = nn.Conv2d(dim, dim * 3, 1, bias=False)
+        self.proj = nn.Conv2d(dim, dim, 1)
+
         self.attn_drop = nn.Dropout(attention_dropout)
-        self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(projection_dropout)
 
-        self.rotary_emb = RotaryEmbedding(dim=head_dim)
+        # 应用旋转位置编码
+        # self.rotary_emb = RotaryEmbedding(dim=head_dim)
 
     def forward(self, x):
         B, N, C = x.shape
@@ -36,9 +40,9 @@ class Attention(nn.Module):
 
         q = q * self.scale
 
-        # 应用旋转位置编码
-        q = self.rotary_emb.rotate_queries_or_keys(q)
-        k = self.rotary_emb.rotate_queries_or_keys(k)
+        # # 应用旋转位置编码
+        # q = self.rotary_emb.rotate_queries_or_keys(q)
+        # k = self.rotary_emb.rotate_queries_or_keys(k)
 
         attn = einsum('b h i d, b h j d -> b h i j', q, k)
         attn = attn.softmax(dim=-1)
@@ -83,20 +87,25 @@ class TransformerEncoderLayer(nn.Module):
         self.self_attn = Attention(dim=d_model, num_heads=nhead,
                                    attention_dropout=attention_dropout, projection_dropout=dropout)
 
-        self.linear1  = nn.Linear(d_model, dim_feedforward)
+        # self.linear1  = nn.Linear(d_model, dim_feedforward)
         self.dropout1 = nn.Dropout(dropout)
         self.norm1    = nn.LayerNorm(d_model)
-        self.linear2  = nn.Linear(dim_feedforward, d_model)
+        # self.linear2  = nn.Linear(dim_feedforward, d_model)
         self.dropout2 = nn.Dropout(dropout)
 
         self.drop_path = DropPath(drop_path_rate)
 
         self.activation = F.gelu
 
+        # 卷积层
+        self.conv1 = nn.Conv2d(d_model, dim_feedforward, 1)
+        self.conv2 = nn.Conv2d(dim_feedforward, d_model, 1)
+
     def forward(self, src, *args, **kwargs):
         src = src + self.drop_path(self.self_attn(self.pre_norm(src)))
         src = self.norm1(src)
-        src2 = self.linear2(self.dropout1(self.activation(self.linear1(src))))
+        # src2 = self.linear2(self.dropout1(self.activation(self.linear1(src))))
+        src2 = self.conv2(self.dropout1(self.activation(self.conv1(src))))
         src = src + self.drop_path(self.dropout2(src2))
         return src
 
@@ -349,9 +358,9 @@ class LST_original(nn.Module):
         self.pos_embed_cls = (nn.Parameter(torch.zeros(1, 1, hidden_dim))
                               if use_cls else None)
 
-        # # We use two embeddings, one for joints and one for frames
-        # self.joint_pe = PositionalEncoding(hidden_dim, max_joints)
-        # self.frame_pe = PositionalEncoding(hidden_dim, max_frames)
+        # We use two embeddings, one for joints and one for frames
+        self.joint_pe = PositionalEncoding(hidden_dim, max_joints)
+        self.frame_pe = PositionalEncoding(hidden_dim, max_frames)
 
         # Variable hidden dim
         hidden_dims = []
@@ -418,14 +427,14 @@ class LST_original(nn.Module):
         # embed the inputs, orig dim -> hidden dim
         x_embd = self.embd_layer(x)
 
-        # # add positional embeddings
-        # x_input = self.joint_pe(x_embd)  # joint-wise
-        # x_input = self.frame_pe(rearrange(x_input, 'b t v c -> b v t c'))  # frame wise
-        # # convert to required dim order
-        # x_input = rearrange(x_input, 'b v t c -> b (t v) c')
+        # add positional embeddings
+        x_input = self.joint_pe(x_embd)  # joint-wise
+        x_input = self.frame_pe(rearrange(x_input, 'b t v c -> b v t c'))  # frame wise
+        # convert to required dim order
+        x_input = rearrange(x_input, 'b v t c -> b (t v) c')
 
-        # 旋转位置编码
-        x_input = rearrange(x_embd, 'b t v c -> b (t v) c')
+        # # 旋转位置编码
+        # x_input = rearrange(x_embd, 'b t v c -> b (t v) c')
 
         # prepend the cls token for source if needed
         if self.cls_token is not None:
