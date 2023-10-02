@@ -51,6 +51,8 @@ cd pyskl
 conda env create -f pyskl.yaml
 conda activate pyskl
 pip install -e .
+# 安装位置编码
+pip install rotary-embedding-torch
 ```
 
 ## Demo
