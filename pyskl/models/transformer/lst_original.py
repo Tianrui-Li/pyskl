@@ -127,7 +127,9 @@ class TransformerEncoderLayer(nn.Module):
         src = src + self.drop_path(self.self_attn(self.pre_norm(src)))
         src = self.norm1(src)
         # src2 = self.linear2(self.dropout1(self.activation(self.linear1(src))))
+        src = rearrange(src, 'b t v (h d) -> b (h d) t v')
         src2 = self.conv2(self.dropout1(self.activation(self.conv1(src))))
+        src = rearrange(src2, 'b (h d) t v -> b t v (h d)')
         src = src + self.drop_path(self.dropout2(src2))
         return src
 
