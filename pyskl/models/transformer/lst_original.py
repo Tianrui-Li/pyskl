@@ -130,7 +130,7 @@ class TransformerEncoderLayer(nn.Module):
         src = rearrange(src, 'b t v d -> b d t v')
         src2 = self.conv2(self.dropout1(self.activation(self.conv1(src))))
         src = rearrange(src2, 'b d t v -> b t v d')
-        src = src + self.drop_path(self.dropout2(src2))
+        src = src + self.drop_path(self.dropout2(src))
         return src
 
 
@@ -477,11 +477,9 @@ class LST_original(nn.Module):
         hidden_state = x_input
         attn_mask = None
         for i, (temporal_pool, encoder) in enumerate(self.layers):
-            hidden_state = rearrange(hidden_state, 'b t v c -> b (t v) c', v=V)
             # Temporal pooling
             hidden_state = temporal_pool(hidden_state, v=V)
 
-            hidden_state = rearrange(hidden_state, 'b (t v) c -> b t v c', v=V)
             # Construct attention mask if required
             if self.sliding_window:
                 attn_mask = sliding_window_attention_mask(
