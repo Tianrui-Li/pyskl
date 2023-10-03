@@ -6,6 +6,9 @@ import torch
 from torch import nn, einsum
 from einops import rearrange, pack
 import math
+
+from torch.nn.init import trunc_normal_
+
 # from ...utils import Graph
 
 from ..builder import BACKBONES
@@ -14,24 +17,94 @@ from ..gcns import unit_tcn
 import torch.nn.functional as F
 
 
+
+
+def attention_pool(tensor, pool, tv_shape=(16, 25), has_cls_embed=True, norm=None):
+    if pool is None:
+        return tensor, tv_shape
+    tensor_dim = tensor.ndim
+    if tensor_dim == 4:
+        pass
+    elif tensor_dim == 3:
+        tensor = tensor.unsqueeze(1)
+    else:
+        raise NotImplementedError(f"Unsupported input dimension {tensor.shape}")
+
+    if has_cls_embed:
+        cls_tok, tensor = tensor[:, :, :1, :], tensor[:, :, 1:, :]
+
+    B, N, L, C = tensor.shape
+    T, V = tv_shape
+    tensor = (
+        tensor.reshape(B * N, T, V, C).permute(0, 3, 1, 2).contiguous()
+    )
+
+    tensor = pool(tensor)
+
+    tv_shape = [tensor.shape[2], tensor.shape[3]]
+    L_pooled = tensor.shape[2] * tensor.shape[3]
+    tensor = tensor.reshape(B, N, C, L_pooled).transpose(2, 3)
+    if has_cls_embed:
+        tensor = torch.cat((cls_tok, tensor), dim=2)
+    if norm is not None:
+        tensor = norm(tensor)
+    # Assert tensor_dim in [3, 4]
+    if tensor_dim == 4:
+        pass
+    else:  # tensor_dim == 3:
+        tensor = tensor.squeeze(1)
+    return tensor, tv_shape
+
+
 class Attention(nn.Module):
-    def __init__(self, dim, num_heads=8, attention_dropout=0.1, projection_dropout=0.1):
+    def __init__(self, dim, num_heads=8, attention_dropout=0.1, projection_dropout=0.1, kernel_q=(3, 1),
+                 stride_q=(2, 1)):
         super().__init__()
         self.heads = num_heads
         head_dim = dim // self.heads
         self.scale = head_dim ** -0.5
-
         self.qkv = nn.Linear(dim, dim * 3, bias=False)
         self.attn_drop = nn.Dropout(attention_dropout)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(projection_dropout)
+        self.has_cls_embed = True
+
+        if dim == 64:
+            N = 64*25
+        elif dim == 128:
+            N = 32*25
+        elif dim == 256:
+            N = 16*25
+
+        self.linear_out = nn.Linear(N//2+1,N+1)
+        self.norm_q = nn.LayerNorm(head_dim) if len(kernel_q) > 0 else None
+        padding_q = [int(q // 2) for q in kernel_q]
+        self.pool_q = (
+            nn.Conv2d(
+                head_dim,
+                head_dim,
+                kernel_q,
+                stride=stride_q,
+                padding=padding_q,
+                groups=head_dim,
+                bias=False,
+            )
+            if len(kernel_q) > 0
+            else None
+        )
 
     def forward(self, x):
         B, N, C = x.shape
 
-        qkv = self.qkv(x).chunk(3, dim = -1)
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = self.heads), qkv)
-
+        qkv = self.qkv(x).chunk(3, dim=-1)
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads), qkv)
+        q, q_shape = attention_pool(
+            q,
+            self.pool_q,
+            (N // 25, 25),
+            has_cls_embed=self.has_cls_embed,
+            norm=self.norm_q if hasattr(self, "norm_q") else None,
+        )
         q = q * self.scale
 
         attn = einsum('b h i d, b h j d -> b h i j', q, k)
@@ -39,7 +112,11 @@ class Attention(nn.Module):
         attn = self.attn_drop(attn)
 
         x = einsum('b h i j, b h j d -> b h i d', attn, v)
-        x = rearrange(x, 'b h n d -> b n (h d)')
+
+        x = rearrange(x, 'b h i d -> b h d i')
+        x = self.linear_out(x)
+        # x = rearrange(x, 'b n d i -> b h i d')
+        x = rearrange(x, 'b h d n -> b n (h d)')
 
         return self.proj_drop(self.proj(x))
 
@@ -58,10 +135,9 @@ class DropPath(nn.Module):
         keep_prob = 1 - self.drop_prob
         shape = (batch, *((1,) * (x.ndim - 1)))
 
-        keep_mask = torch.zeros(shape, device = device).float().uniform_(0, 1) < keep_prob
+        keep_mask = torch.zeros(shape, device=device).float().uniform_(0, 1) < keep_prob
         output = x.div(keep_prob) * keep_mask.float()
         return output
-
 
 
 class TransformerEncoderLayer(nn.Module):
@@ -69,6 +145,7 @@ class TransformerEncoderLayer(nn.Module):
     Inspired by torch.nn.TransformerEncoderLayer and
     rwightman's timm package.
     """
+
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
                  attention_dropout=0.1, drop_path_rate=0.1):
         super().__init__()
@@ -77,10 +154,10 @@ class TransformerEncoderLayer(nn.Module):
         self.self_attn = Attention(dim=d_model, num_heads=nhead,
                                    attention_dropout=attention_dropout, projection_dropout=dropout)
 
-        self.linear1  = nn.Linear(d_model, dim_feedforward)
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout1 = nn.Dropout(dropout)
-        self.norm1    = nn.LayerNorm(d_model)
-        self.linear2  = nn.Linear(dim_feedforward, d_model)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
         self.dropout2 = nn.Dropout(dropout)
 
         self.drop_path = DropPath(drop_path_rate)
@@ -93,9 +170,6 @@ class TransformerEncoderLayer(nn.Module):
         src2 = self.linear2(self.dropout1(self.activation(self.linear1(src))))
         src = src + self.drop_path(self.dropout2(src2))
         return src
-
-
-
 
 
 def sliding_window_attention_mask(
@@ -391,12 +465,32 @@ class LST_original(nn.Module):
         self.norm = (nn.LayerNorm(hidden_dims[-1][-1], eps=layer_norm_eps)
                      if norm_first else None)
 
-        self.init_weights()
 
     def init_weights(self):
-        for p in self.parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                trunc_normal_(m.weight, std=.02)
+                if isinstance(m, nn.Linear) and m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.LayerNorm):
+                nn.init.constant_(m.bias, 0)
+                nn.init.constant_(m.weight, 1.0)
+            elif isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out')
+                if isinstance(m, nn.Conv2d) and m.bias is not None and isinstance(m.bias, torch.Tensor):
+                    nn.init.constant_(m.bias, 0)
+
+    # def init_weights(self):
+    #     for m in self.modules():
+    #         if isinstance(m, nn.Conv2d):
+    #             conv_init(m)
+    #         elif isinstance(m, nn.BatchNorm2d):
+    #             bn_init(m, 1)
+    #         elif isinstance(m, nn.Linear):
+    #             fc_init(m)
+    #         elif isinstance(m, nn.LayerNorm):
+    #             layernorm_init(m, 1)
+
 
     def forward(self, x):
         N, M, T, V, C = x.size()
