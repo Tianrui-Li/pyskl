@@ -14,28 +14,6 @@ from ..gcns import unit_tcn
 import torch.nn.functional as F
 
 
-def conv_init(conv):
-    nn.init.kaiming_normal_(conv.weight, mode='fan_out')
-    # nn.init.constant_(conv.bias, 0)
-
-
-def bn_init(bn, scale):
-    nn.init.constant_(bn.weight, scale)
-    nn.init.constant_(bn.bias, 0)
-
-
-def fc_init(fc):
-    nn.init.xavier_normal_(fc.weight)
-    nn.init.constant_(fc.bias, 0)
-
-
-def layernorm_init(layer_norm, scale=1.0):
-    # 初始化 LayerNorm 层的权重和偏置
-    nn.init.constant_(layer_norm.weight, scale)
-    nn.init.constant_(layer_norm.bias, 0)
-
-# from rotary_embedding_torch import RotaryEmbedding
-
 class Attention(nn.Module):
     def __init__(self, dim, num_heads=8, attention_dropout=0.1, projection_dropout=0.1):
         super().__init__()
@@ -43,37 +21,27 @@ class Attention(nn.Module):
         head_dim = dim // self.heads
         self.scale = head_dim ** -0.5
 
-        # self.qkv = nn.Linear(dim, dim * 3, bias=False)
-        # self.proj = nn.Linear(dim, dim)
-        self.qkv = nn.Conv2d(dim, dim * 3, 1, bias=False)
-        self.proj = nn.Conv2d(dim, dim, 1)
-
+        self.qkv = nn.Linear(dim, dim * 3, bias=False)
         self.attn_drop = nn.Dropout(attention_dropout)
+        self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(projection_dropout)
 
-        # 应用旋转位置编码
-        # self.rotary_emb = RotaryEmbedding(dim=head_dim)
-
     def forward(self, x):
-        B, T, V, C = x.shape
-        x = x.permute(0, 3, 1, 2)
-        q, k, v = self.qkv(x).chunk(3, dim=1)
-        q, k, v = map(lambda t: rearrange(t, 'b (h d) t v -> b h (t v) d', h=self.heads), (q, k, v))
-        q = q * self.scale
+        B, N, C = x.shape
 
-        # # 应用旋转位置编码
-        # q = self.rotary_emb.rotate_queries_or_keys(q)
-        # k = self.rotary_emb.rotate_queries_or_keys(k)
+        qkv = self.qkv(x).chunk(3, dim = -1)
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = self.heads), qkv)
+
+        q = q * self.scale
 
         attn = einsum('b h i d, b h j d -> b h i j', q, k)
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
 
         x = einsum('b h i j, b h j d -> b h i d', attn, v)
-        x = rearrange(x, 'b h (t v) d -> b (h d) t v', t=T, v=V)
-        x = self.proj(x)
-        x = rearrange(x, 'b (h d) t v -> b t v (h d)',h=self.heads)
-        return self.proj_drop(x)
+        x = rearrange(x, 'b h n d -> b n (h d)')
+
+        return self.proj_drop(self.proj(x))
 
 
 class DropPath(nn.Module):
@@ -90,9 +58,10 @@ class DropPath(nn.Module):
         keep_prob = 1 - self.drop_prob
         shape = (batch, *((1,) * (x.ndim - 1)))
 
-        keep_mask = torch.zeros(shape, device=device).float().uniform_(0, 1) < keep_prob
+        keep_mask = torch.zeros(shape, device = device).float().uniform_(0, 1) < keep_prob
         output = x.div(keep_prob) * keep_mask.float()
         return output
+
 
 
 class TransformerEncoderLayer(nn.Module):
@@ -100,38 +69,33 @@ class TransformerEncoderLayer(nn.Module):
     Inspired by torch.nn.TransformerEncoderLayer and
     rwightman's timm package.
     """
-
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
                  attention_dropout=0.1, drop_path_rate=0.1):
         super().__init__()
-        self.heads = nhead
+
         self.pre_norm = nn.LayerNorm(d_model)
         self.self_attn = Attention(dim=d_model, num_heads=nhead,
                                    attention_dropout=attention_dropout, projection_dropout=dropout)
 
-        # self.linear1  = nn.Linear(d_model, dim_feedforward)
+        self.linear1  = nn.Linear(d_model, dim_feedforward)
         self.dropout1 = nn.Dropout(dropout)
-        self.norm1 = nn.LayerNorm(d_model)
-        # self.linear2  = nn.Linear(dim_feedforward, d_model)
+        self.norm1    = nn.LayerNorm(d_model)
+        self.linear2  = nn.Linear(dim_feedforward, d_model)
         self.dropout2 = nn.Dropout(dropout)
 
         self.drop_path = DropPath(drop_path_rate)
 
         self.activation = F.gelu
 
-        # 卷积层
-        self.conv1 = nn.Conv2d(d_model, dim_feedforward, 1)
-        self.conv2 = nn.Conv2d(dim_feedforward, d_model, 1)
-
     def forward(self, src, *args, **kwargs):
         src = src + self.drop_path(self.self_attn(self.pre_norm(src)))
         src = self.norm1(src)
-        # src2 = self.linear2(self.dropout1(self.activation(self.linear1(src))))
-        src = rearrange(src, 'b t v d -> b d t v')
-        src2 = self.conv2(self.dropout1(self.activation(self.conv1(src))))
-        src = rearrange(src2, 'b d t v -> b t v d')
-        src = src + self.drop_path(self.dropout2(src))
+        src2 = self.linear2(self.dropout1(self.activation(self.linear1(src))))
+        src = src + self.drop_path(self.dropout2(src2))
         return src
+
+
+
 
 
 def sliding_window_attention_mask(
@@ -319,9 +283,9 @@ class TemporalPooling(nn.Module):
                 cls = self.cls_mapping(cls)
 
             # TCN
-            x = rearrange(x, 'b t v c -> b c t v', v=v)
+            x = rearrange(x, 'b (t v) c -> b c t v', v=v)
             x = self.temporal_pool(x)
-            res = rearrange(x, 'b c t v -> b t v c')
+            res = rearrange(x, 'b c t v -> b (t v) c')
 
             # Concat cls token if any
             if self.with_cls:
@@ -352,14 +316,12 @@ class LST_original(nn.Module):
             stochastic_depth_rate=0.1,
             dropout=0.1,
             dropout_rate=0.,
-            use_cls=False,
+            use_cls=True,
             layer_norm_eps=1e-6,
             max_joints=25,
             max_frames=100,
             temporal_pooling=True,
             sliding_window=False,
-            stride1=2,
-            kernel_size1=3,
     ):
         super().__init__()
 
@@ -405,7 +367,7 @@ class LST_original(nn.Module):
             self.layers.append(nn.ModuleList([
                 # Temporal pool
                 TemporalPooling(
-                    dim_in, dim_out, kernel_size1, stride1,
+                    dim_in, dim_out, 3, dim_mul_factor,
                     pooling=temporal_pooling, with_cls=use_cls),
                 # # Transformer encoder
                 # nn.TransformerEncoderLayer(
@@ -432,21 +394,9 @@ class LST_original(nn.Module):
         self.init_weights()
 
     def init_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                conv_init(m)
-            elif isinstance(m, nn.BatchNorm2d):
-                bn_init(m, 1)
-            elif isinstance(m, nn.Linear):
-                fc_init(m)
-            elif isinstance(m, nn.LayerNorm):
-                layernorm_init(m, 1)
-
-
-    # def init_weights(self):
-    #     for p in self.parameters():
-    #         if p.dim() > 1:
-    #             nn.init.xavier_uniform_(p)
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
 
     def forward(self, x):
         N, M, T, V, C = x.size()
@@ -463,17 +413,15 @@ class LST_original(nn.Module):
         # add positional embeddings
         x_input = self.joint_pe(x_embd)  # joint-wise
         x_input = self.frame_pe(rearrange(x_input, 'b t v c -> b v t c'))  # frame wise
+
         # convert to required dim order
-        x_input = rearrange(x_input, 'b v t c -> b t v c')
-
-        # # 旋转位置编码
-        # x_input = rearrange(x_embd, 'b t v c -> b (t v) c')
-
+        x_input = rearrange(x_input, 'b v t c -> b (t v) c')
         # prepend the cls token for source if needed
         if self.cls_token is not None:
             cls_token = self.cls_token.expand(x_input.size(0), -1, -1)
             cls_token = cls_token + self.pos_embed_cls
             x_input = torch.cat((cls_token, x_input), dim=1)
+
         hidden_state = x_input
         attn_mask = None
         for i, (temporal_pool, encoder) in enumerate(self.layers):
@@ -498,6 +446,6 @@ class LST_original(nn.Module):
             hidden_state = hidden_state[:, :1, :]
 
         hidden_state = rearrange(
-            hidden_state, '(n m) t v c -> n m (t v) c', n=N)
+            hidden_state, '(n m) tv c -> n m tv c', n=N)
 
         return hidden_state
