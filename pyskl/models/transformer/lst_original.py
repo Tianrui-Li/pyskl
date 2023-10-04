@@ -68,7 +68,7 @@ class Attention(nn.Module):
 
         self.norm_kv = nn.LayerNorm(head_dim) if len(kernel_kv) > 0 else None
         padding_kv = [int(kv // 2) for kv in kernel_kv]
-        self.pool = (
+        self.pool_kv = (
             nn.Conv2d(
                 head_dim,
                 head_dim,
