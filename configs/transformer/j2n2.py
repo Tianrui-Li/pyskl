@@ -64,10 +64,10 @@ data = dict(
 
 # optimizer
 # optimizer = dict(type='Adam', lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.0005, amsgrad=False)
-optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005, nesterov=True)
-optimizer_config = dict(grad_clip=None)
-# optimizer = dict(type='AdamW', lr=0.0001, weight_decay=0.01)
-# optimizer_config = dict(grad_clip=dict(max_norm=3.0, norm_type=2))
+# optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005, nesterov=True)
+# optimizer_config = dict(grad_clip=None)
+optimizer = dict(type='AdamW', lr=0.0001, weight_decay=0.01)
+optimizer_config = dict(grad_clip=dict(max_norm=3.0, norm_type=2))
 
 # learning policy
 # lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
@@ -86,7 +86,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='W
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j2/10.11-tm2-1'
+work_dir = './work_dirs/transformer/j2/10.11-tm2-2'
 
 auto_resume = False
 seed = 88
