@@ -139,13 +139,19 @@ class ViViT2n2(nn.Module):
         self.norm = nn.LayerNorm(dim)
         dpr = [x.item() for x in torch.linspace(0, stochastic_depth_rate, depth)]
         dpr_iter = iter(dpr)
-        self.Transformer = nn.ModuleList([])
-        for _ in range(depth):
-            self.Transformer.append(nn.ModuleList([
-                TransformerEncoderLayer(d_model=dim, nhead=heads,
-                                        dim_feedforward=dim * scale_dim, dropout=dropout,
-                                        attention_dropout=attention_dropout, drop_path_rate=next(dpr_iter))
-            ]))
+        # self.Transformer = nn.ModuleList([])
+        # for _ in range(depth):
+        #     self.Transformer.append(nn.ModuleList([
+        #         TransformerEncoderLayer(d_model=dim, nhead=heads,
+        #                                 dim_feedforward=dim * scale_dim, dropout=dropout,
+        #                                 attention_dropout=attention_dropout, drop_path_rate=next(dpr_iter))
+        #     ]))
+
+        self.blocks = nn.ModuleList([
+            TransformerEncoderLayer(d_model=dim, nhead=heads,
+                                    dim_feedforward=dim * scale_dim, dropout=dropout,
+                                    attention_dropout=attention_dropout, drop_path_rate=dpr_iter)
+            for _ in depth])
 
         self.enc_pe_1 = PositionalEncoding(dim, dropout, max_position_embeddings_2)
         self.enc_pe_2 = PositionalEncoding(dim, dropout, max_position_embeddings_1)
@@ -182,13 +188,13 @@ class ViViT2n2(nn.Module):
         x = torch.cat((cls_space_tokens, x), dim=1)
 
         # 输出为 N * M * V, 1+T, dim
-        x_input = self.enc_pe_1(x)
+        x = self.enc_pe_1(x)
 
         # 输出为 N * M * V, 1+T, dim
-        for encoder in self.Transformer:
-            x_input = encoder(x_input)
+        for blk in self.blocks:
+            x = blk(x)
 
-        x = self.norm(x_input)
+        x = self.norm(x)
 
         # 提取cls，x维度变为 N * M * V，dim
         x = x[:, 0].view(N * M, V, -1)
@@ -202,8 +208,8 @@ class ViViT2n2(nn.Module):
         x = self.enc_pe_2(x)
 
         # 输出为 N * M, 1+V, dim
-        for encoder in self.Transformer:
-            x = encoder(x)
+        for blk in self.blocks:
+            x = blk(x)
 
         x = self.norm(x)
 
