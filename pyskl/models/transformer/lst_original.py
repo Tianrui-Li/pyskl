@@ -75,11 +75,11 @@ class Attention(nn.Module):
         super().__init__()
         self.dim = dim
 
-        if dim == 64:
+        if dim == 128:
             self.group_size = (64, 25)
-        elif dim == 128:
-            self.group_size = (32, 25)
         elif dim == 256:
+            self.group_size = (32, 25)
+        elif dim == 512:
             self.group_size = (16, 25)
 
         self.num_heads = num_heads

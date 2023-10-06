@@ -5,16 +5,17 @@ model = dict(
     type='RecognizerGCN',
     backbone=dict(
         type='LST_original',
-        hidden_dim=64,
+        hidden_dim=128,
         dim_mul_layers=(4, 7),
         temporal_pooling=True,
         sliding_window=False,
         norm_first=True,
+        num_heads=8,
         # stride1=3,
         # kernel_size1=5,
         # graph_cfg=dict(layout='nturgb+d', mode='spatial'),
     ),
-    cls_head=dict(type='TRHead', num_classes=60, in_channels=256, dropout=0.))
+    cls_head=dict(type='TRHead', num_classes=60, in_channels=512, dropout=0.))
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
@@ -23,7 +24,9 @@ clip_len = 64
 mode = 'zero'
 train_pipeline = [
     dict(type='PreNormalize3D'),
-    dict(type='RandomRot', theta=0.2),
+    # dict(type='RandomRot', theta=0.2),
+    dict(type='RandomScale', scale=0.1),
+    dict(type='RandomRot'),
     dict(type='GenSkeFeat', dataset='nturgb+d', feats=['j']),
     dict(type='UniformSample', clip_len=clip_len),
     dict(type='PoseDecode'),
@@ -50,7 +53,7 @@ test_pipeline = [
     dict(type='ToTensor', keys=['keypoint'])
 ]
 data = dict(
-    videos_per_gpu=16,
+    videos_per_gpu=8,
     workers_per_gpu=8,
     test_dataloader=dict(videos_per_gpu=1),
     train=dict(type=dataset_type, ann_file=ann_file, pipeline=train_pipeline, split='xsub_train'),
@@ -69,14 +72,14 @@ lr_config = dict(
     warmup_iters=10,
     warmup_ratio=1.0 / 100,
     min_lr_ratio=1e-6)
-total_epochs = 80
+total_epochs = 100
 checkpoint_config = dict(interval=1)
 evaluation = dict(interval=4, metrics=['top_k_accuracy'])
 log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='WandbLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/10.11-1'
+work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/10.11-3'
 find_unused_parameters = False
 auto_resume = False
 seed = 88
