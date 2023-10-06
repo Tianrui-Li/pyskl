@@ -9,7 +9,6 @@ model = dict(
         max_position_embeddings_1=26,  # 25*40+1=1001
         max_position_embeddings_2=65,
         # dropout=0.1,
-        dim=256,
     ),
     cls_head=dict(type='vit2Head', num_classes=60, in_channels=256))
 
@@ -88,6 +87,6 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='W
 # runtime settings
 log_level = 'INFO'
 work_dir = './work_dirs/transformer/j2/10.11-tm2-1'
-find_unused_parameters = False
+
 auto_resume = False
 seed = 88

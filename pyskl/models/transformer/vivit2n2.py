@@ -137,6 +137,7 @@ class ViViT2n2(nn.Module):
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
         self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
         self.norm = nn.LayerNorm(dim)
+
         dpr = [x.item() for x in torch.linspace(0, stochastic_depth_rate, depth)]
         dpr_iter = iter(dpr)
         # self.Transformer = nn.ModuleList([])
