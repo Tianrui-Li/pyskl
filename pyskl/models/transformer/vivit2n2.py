@@ -150,7 +150,7 @@ class ViViT2n2(nn.Module):
         self.blocks = nn.ModuleList([
             TransformerEncoderLayer(d_model=dim, nhead=heads,
                                     dim_feedforward=dim * scale_dim, dropout=dropout,
-                                    attention_dropout=attention_dropout, drop_path_rate=dpr_iter)
+                                    attention_dropout=attention_dropout, drop_path_rate=next(dpr_iter))
             for _ in range(depth)])
 
         self.enc_pe_1 = PositionalEncoding(dim, dropout, max_position_embeddings_2)
