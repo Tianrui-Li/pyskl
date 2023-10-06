@@ -423,7 +423,7 @@ class LST_original(nn.Module):
             stochastic_depth_rate=0.1,
             dropout=0.1,
             dropout_rate=0.,
-            use_cls=True,
+            use_cls=False,
             layer_norm_eps=1e-6,
             max_joints=25,
             max_frames=100,
