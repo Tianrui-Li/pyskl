@@ -51,7 +51,7 @@ test_pipeline = [
 ]
 data = dict(
     videos_per_gpu=16,
-    workers_per_gpu=4,
+    workers_per_gpu=8,
     test_dataloader=dict(videos_per_gpu=1),
     train=dict(type=dataset_type, ann_file=ann_file, pipeline=train_pipeline, split='xsub_train'),
     val=dict(type=dataset_type, ann_file=ann_file, pipeline=val_pipeline, split='xsub_val'),
@@ -76,7 +76,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='W
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/10.4-1'
+work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/10.11-1'
 find_unused_parameters = False
 auto_resume = False
 seed = 88

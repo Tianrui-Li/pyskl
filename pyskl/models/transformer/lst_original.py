@@ -12,106 +12,146 @@ from ..builder import BACKBONES
 from .utils import PositionalEncoding
 from ..gcns import unit_tcn
 import torch.nn.functional as F
+from rotary_embedding_torch import RotaryEmbedding
 
 
-def attention_pool(tensor, pool, tv_shape=(16, 25), has_cls_embed=True, norm=None):
-    if pool is None:
-        return tensor, tv_shape
-    tensor_dim = tensor.ndim
-    if tensor_dim == 4:
-        pass
-    elif tensor_dim == 3:
-        tensor = tensor.unsqueeze(1)
-    else:
-        raise NotImplementedError(f"Unsupported input dimension {tensor.shape}")
+class DynamicPosBias(nn.Module):
+    def __init__(self, dim, num_heads, residual):
+        super().__init__()
+        self.residual = residual
+        self.num_heads = num_heads
+        self.pos_dim = dim // 4
+        self.pos_proj = nn.Linear(2, self.pos_dim)
+        self.pos1 = nn.Sequential(
+            nn.LayerNorm(self.pos_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(self.pos_dim, self.pos_dim),
+        )
+        self.pos2 = nn.Sequential(
+            nn.LayerNorm(self.pos_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(self.pos_dim, self.pos_dim)
+        )
+        self.pos3 = nn.Sequential(
+            nn.LayerNorm(self.pos_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(self.pos_dim, self.num_heads)
+        )
 
-    if has_cls_embed:
-        cls_tok, tensor = tensor[:, :, :1, :], tensor[:, :, 1:, :]
+    def forward(self, biases):
+        if self.residual:
+            pos = self.pos_proj(biases)  # 2Wh-1 * 2Ww-1, heads
+            pos = pos + self.pos1(pos)
+            pos = pos + self.pos2(pos)
+            pos = self.pos3(pos)
+        else:
+            pos = self.pos3(self.pos2(self.pos1(self.pos_proj(biases))))
+        return pos
 
-    B, N, L, C = tensor.shape
-    T, V = tv_shape
-    tensor = (
-        tensor.reshape(B * N, T, V, C).permute(0, 3, 1, 2).contiguous()
-    )
-
-    tensor = pool(tensor)
-
-    tv_shape = [tensor.shape[2], tensor.shape[3]]
-    L_pooled = tensor.shape[2] * tensor.shape[3]
-    tensor = tensor.reshape(B, N, C, L_pooled).transpose(2, 3)
-    if has_cls_embed:
-        tensor = torch.cat((cls_tok, tensor), dim=2)
-    if norm is not None:
-        tensor = norm(tensor)
-    # Assert tensor_dim in [3, 4]
-    if tensor_dim == 4:
-        pass
-    else:  # tensor_dim == 3:
-        tensor = tensor.squeeze(1)
-    return tensor, tv_shape
+    def flops(self, N):
+        flops = N * 2 * self.pos_dim
+        flops += N * self.pos_dim * self.pos_dim
+        flops += N * self.pos_dim * self.pos_dim
+        flops += N * self.pos_dim * self.num_heads
+        return flops
 
 
 class Attention(nn.Module):
-    def __init__(self, dim, num_heads=8, attention_dropout=0.1, projection_dropout=0.1, kernel_kv=(3, 1),
-                 stride_kv=(2, 1)):
+    r""" Multi-head self attention module with dynamic position bias.
+
+    Args:
+        dim (int): Number of input channels.
+        group_size (tuple[int]): The height and width of the group.
+        num_heads (int): Number of attention heads.
+        qkv_bias (bool, optional):  If True, add a learnable bias to query, key, value. Default: True
+        qk_scale (float | None, optional): Override default qk scale of head_dim ** -0.5 if set
+        attn_drop (float, optional): Dropout ratio of attention weight. Default: 0.0
+        proj_drop (float, optional): Dropout ratio of output. Default: 0.0
+    """
+
+    def __init__(self, dim, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.,
+                 position_bias=True):
+
         super().__init__()
-        self.heads = num_heads
-        head_dim = dim // self.heads
-        self.scale = head_dim ** -0.5
+        self.dim = dim
 
-        self.qkv = nn.Linear(dim, dim * 3, bias=False)
-        self.attn_drop = nn.Dropout(attention_dropout)
+        if dim == 64:
+            self.group_size = (64, 25)
+        elif dim == 128:
+            self.group_size = (32, 25)
+        elif dim == 256:
+            self.group_size = (16, 25)
+
+        self.num_heads = num_heads
+        head_dim = dim // num_heads
+        self.scale = qk_scale or head_dim ** -0.5
+        self.position_bias = position_bias
+
+        if position_bias:
+            self.pos = DynamicPosBias(self.dim // 4, self.num_heads, residual=False)
+
+            # generate mother-set
+            position_bias_h = torch.arange(1 - self.group_size[0], self.group_size[0])
+            position_bias_w = torch.arange(1 - self.group_size[1], self.group_size[1])
+            biases = torch.stack(torch.meshgrid([position_bias_h, position_bias_w]))  # 2, 2Wh-1, 2W2-1
+            biases = biases.flatten(1).transpose(0, 1).float()
+            self.register_buffer("biases", biases)
+
+            # get pair-wise relative position index for each token inside the group
+            coords_h = torch.arange(self.group_size[0])
+            coords_w = torch.arange(self.group_size[1])
+            coords = torch.stack(torch.meshgrid([coords_h, coords_w]))  # 2, Wh, Ww
+            coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
+            relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
+            relative_coords = relative_coords.permute(1, 2, 0).contiguous()  # Wh*Ww, Wh*Ww, 2
+            relative_coords[:, :, 0] += self.group_size[0] - 1  # shift to start from 0
+            relative_coords[:, :, 1] += self.group_size[1] - 1
+            relative_coords[:, :, 0] *= 2 * self.group_size[1] - 1
+            relative_position_index = relative_coords.sum(-1)  # Wh*Ww, Wh*Ww
+            self.register_buffer("relative_position_index", relative_position_index)
+
+        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
-        self.proj_drop = nn.Dropout(projection_dropout)
+        self.proj_drop = nn.Dropout(proj_drop)
 
-        self.has_cls_embed = True
+        self.softmax = nn.Softmax(dim=-1)
 
-        self.norm_kv = nn.LayerNorm(head_dim) if len(kernel_kv) > 0 else None
-        padding_kv = [int(kv // 2) for kv in kernel_kv]
-        self.pool_kv = (
-            nn.Conv2d(
-                head_dim,
-                head_dim,
-                kernel_kv,
-                stride=stride_kv,
-                padding=padding_kv,
-                groups=head_dim,
-                bias=False,
-            )
-            if len(kernel_kv) > 0
-            else None
-        )
-
-    def forward(self, x):
-        B, N, C = x.shape
-
-        qkv = self.qkv(x).chunk(3, dim=-1)
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads), qkv)
+    def forward(self, x, mask=None):
+        """
+        Args:
+            x: input features with shape of (num_groups*B, N, C)
+            mask: (0/-inf) mask with shape of (num_groups, Wh*Ww, Wh*Ww) or None
+        """
+        B_, N, C = x.shape
+        qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
         q = q * self.scale
-        k, k_shape = attention_pool(
-            k,
-            self.pool_kv,
-            (N // 25, 25),
-            has_cls_embed=self.has_cls_embed,
-            norm=self.norm_kv if hasattr(self, "norm_kv") else None,
-        )
-        v, v_shape = attention_pool(
-            v,
-            self.pool_kv,
-            (N // 25, 25),
-            has_cls_embed=self.has_cls_embed,
-            norm=self.norm_kv if hasattr(self, "norm_kv") else None,
-        )
+        attn = (q @ k.transpose(-2, -1))
 
-        attn = einsum('b h i d, b h j d -> b h i j', q, k)
-        attn = attn.softmax(dim=-1)
+        if self.position_bias:
+            pos = self.pos(self.biases)  # 2Wh-1 * 2Ww-1, heads
+            # select position bias
+            relative_position_bias = pos[self.relative_position_index.view(-1)].view(
+                self.group_size[0] * self.group_size[1], self.group_size[0] * self.group_size[1], -1)  # Wh*Ww,Wh*Ww,nH
+            relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
+            attn = attn + relative_position_bias.unsqueeze(0)
+
+        if mask is not None:
+            nW = mask.shape[0]
+            attn = attn.view(B_ // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
+            attn = attn.view(-1, self.num_heads, N, N)
+            attn = self.softmax(attn)
+        else:
+            attn = self.softmax(attn)
+
         attn = self.attn_drop(attn)
 
-        x = einsum('b h i j, b h j d -> b h i d', attn, v)
-        x = rearrange(x, 'b h n d -> b n (h d)')
-
-        return self.proj_drop(self.proj(x))
+        x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
+        x = self.proj(x)
+        x = self.proj_drop(x)
+        return x
 
 
 class DropPath(nn.Module):
@@ -145,7 +185,7 @@ class TransformerEncoderLayer(nn.Module):
 
         self.pre_norm = nn.LayerNorm(d_model)
         self.self_attn = Attention(dim=d_model, num_heads=nhead,
-                                   attention_dropout=attention_dropout, projection_dropout=dropout)
+                                   attn_drop=attention_dropout, proj_drop=dropout)
 
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout1 = nn.Dropout(dropout)
@@ -389,6 +429,8 @@ class LST_original(nn.Module):
             max_frames=100,
             temporal_pooling=True,
             sliding_window=False,
+            stride1=2,
+            kernel_size1=3,
     ):
         super().__init__()
 
@@ -408,9 +450,9 @@ class LST_original(nn.Module):
         self.pos_embed_cls = (nn.Parameter(torch.zeros(1, 1, hidden_dim))
                               if use_cls else None)
 
-        # We use two embeddings, one for joints and one for frames
-        self.joint_pe = PositionalEncoding(hidden_dim, max_joints)
-        self.frame_pe = PositionalEncoding(hidden_dim, max_frames)
+        # # We use two embeddings, one for joints and one for frames
+        # self.joint_pe = PositionalEncoding(hidden_dim, max_joints)
+        # self.frame_pe = PositionalEncoding(hidden_dim, max_frames)
 
         # Variable hidden dim
         hidden_dims = []
@@ -434,7 +476,7 @@ class LST_original(nn.Module):
             self.layers.append(nn.ModuleList([
                 # Temporal pool
                 TemporalPooling(
-                    dim_in, dim_out, 3, dim_mul_factor,
+                    dim_in, dim_out, kernel_size1, stride1,
                     pooling=temporal_pooling, with_cls=use_cls),
                 # # Transformer encoder
                 # nn.TransformerEncoderLayer(
@@ -477,12 +519,15 @@ class LST_original(nn.Module):
         # embed the inputs, orig dim -> hidden dim
         x_embd = self.embd_layer(x)
 
-        # add positional embeddings
-        x_input = self.joint_pe(x_embd)  # joint-wise
-        x_input = self.frame_pe(rearrange(x_input, 'b t v c -> b v t c'))  # frame wise
+        # # add positional embeddings
+        # x_input = self.joint_pe(x_embd)  # joint-wise
+        # x_input = self.frame_pe(rearrange(x_input, 'b t v c -> b v t c'))  # frame wise
+        # # convert to required dim order
+        # x_input = rearrange(x_input, 'b v t c -> b (t v) c')
 
-        # convert to required dim order
-        x_input = rearrange(x_input, 'b v t c -> b (t v) c')
+        # 旋转位置编码
+        x_input = rearrange(x_embd, 'b t v c -> b (t v) c')
+
         # prepend the cls token for source if needed
         if self.cls_token is not None:
             cls_token = self.cls_token.expand(x_input.size(0), -1, -1)
