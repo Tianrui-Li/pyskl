@@ -185,9 +185,10 @@ class ViViT2n2(nn.Module):
         x_input = self.enc_pe_1(x)
 
         # 输出为 N * M * V, 1+T, dim
-        x = self.Transformer(x_input)
+        for encoder in self.Transformer:
+            x_input = encoder(x_input)
 
-        x = self.norm(x)
+        x = self.norm(x_input)
 
         # 提取cls，x维度变为 N * M * V，dim
         x = x[:, 0].view(N * M, V, -1)
@@ -201,7 +202,8 @@ class ViViT2n2(nn.Module):
         x = self.enc_pe_2(x)
 
         # 输出为 N * M, 1+V, dim
-        x = self.Transformer(x)
+        for encoder in self.Transformer:
+            x = encoder(x)
 
         x = self.norm(x)
 
