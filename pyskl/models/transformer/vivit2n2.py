@@ -6,64 +6,56 @@ from torch import Tensor
 from einops import rearrange
 from ...utils import Graph
 from ..builder import BACKBONES
-
-
-class PostNorm(nn.Module):
-    def __init__(self, dim, fn):
-        super().__init__()
-        self.norm = nn.LayerNorm(dim)
-        self.fn = fn
-
-    def forward(self, x, **kwargs):
-        return self.norm(x + self.fn(x), **kwargs)
-
-
-class FeedForward(nn.Module):
-    def __init__(self, dim, hidden_dim, dropout=0.):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(dim, hidden_dim),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_dim, dim),
-            nn.Dropout(dropout)
-        )
-
-    def forward(self, x):
-        return self.net(x)
+import torch.nn.functional as F
 
 
 class Attention(nn.Module):
-    def __init__(self, dim, heads=8, dim_head=64, dropout=0.):
+    def __init__(self, dim, num_heads=8, attention_dropout=0.1, projection_dropout=0.1):
         super().__init__()
+        self.heads = num_heads
+        head_dim = dim // self.heads
+        self.scale = head_dim ** -0.5
 
-        inner_dim = dim_head * heads
-
-        project_out = not (heads == 1 and dim_head == dim)
-
-        self.heads = heads
-        self.scale = dim_head ** -0.5
-        self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=False)
-
-        self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, dim),
-            nn.Dropout(dropout)
-        ) if project_out else nn.Identity()
+        self.qkv = nn.Linear(dim, dim * 3, bias=False)
+        self.attn_drop = nn.Dropout(attention_dropout)
+        self.proj = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(projection_dropout)
 
     def forward(self, x):
-        b, n, d, h = *x.shape, self.heads
-        qkv = self.to_qkv(x).chunk(3, dim=-1)
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), qkv)
+        B, N, C = x.shape
 
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        qkv = self.qkv(x).chunk(3, dim=-1)
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads), qkv)
 
-        attn = dots.softmax(dim=-1)
+        q = q * self.scale
 
-        out = einsum('b h i j, b h j d -> b h i d', attn, v)
-        out = rearrange(out, 'b h n d -> b n (h d)')
-        out = self.to_out(out)
+        attn = einsum('b h i d, b h j d -> b h i j', q, k)
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
 
-        return out  # input dim (b n d), output dim (b n d)
+        x = einsum('b h i j, b h j d -> b h i d', attn, v)
+        x = rearrange(x, 'b h n d -> b n (h d)')
+
+        return self.proj_drop(self.proj(x))
+
+
+class DropPath(nn.Module):
+    def __init__(self, drop_prob=None):
+        super().__init__()
+        self.drop_prob = float(drop_prob)
+
+    def forward(self, x):
+        batch, drop_prob, device, dtype = x.shape[0], self.drop_prob, x.device, x.dtype
+
+        if drop_prob <= 0. or not self.training:
+            return x
+
+        keep_prob = 1 - self.drop_prob
+        shape = (batch, *((1,) * (x.ndim - 1)))
+
+        keep_mask = torch.zeros(shape, device=device).float().uniform_(0, 1) < keep_prob
+        output = x.div(keep_prob) * keep_mask.float()
+        return output
 
 
 class PositionalEncoding(nn.Module):
@@ -85,31 +77,42 @@ class PositionalEncoding(nn.Module):
 
 
 def _init_weights(module):
-    if isinstance(module, (nn.Linear, nn.Embedding)):
-        nn.init.trunc_normal_(module.weight, std=.02)
-    elif isinstance(module, (nn.LayerNorm, nn.GroupNorm, nn.BatchNorm2d)):
-        nn.init.zeros_(module.bias)
-        nn.init.ones_(module.weight)
-    if isinstance(module, nn.Linear) and module.bias is not None:
-        nn.init.zeros_(module.bias)
+    def init_weights(self):
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
 
 
-class Transformer(nn.Module):
-    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout=0.):
+class TransformerEncoderLayer(nn.Module):
+    """
+    Inspired by torch.nn.TransformerEncoderLayer and
+    rwightman's timm package.
+    """
+
+    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
+                 attention_dropout=0.1, drop_path_rate=0.1):
         super().__init__()
-        self.layers = nn.ModuleList([])
-        self.norm = nn.LayerNorm(dim)
-        for _ in range(depth):
-            self.layers.append(nn.ModuleList([
-                PostNorm(dim, Attention(dim, heads=heads, dim_head=dim_head, dropout=dropout)),
-                PostNorm(dim, FeedForward(dim, mlp_dim, dropout=dropout))
-            ]))
 
-    def forward(self, x):
-        for attn, ff in self.layers:
-            x = attn(x)
-            x = ff(x)
-        return self.norm(x)
+        self.pre_norm = nn.LayerNorm(d_model)
+        self.self_attn = Attention(dim=d_model, num_heads=nhead,
+                                   attention_dropout=attention_dropout, projection_dropout=dropout)
+
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.dropout1 = nn.Dropout(dropout)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
+        self.dropout2 = nn.Dropout(dropout)
+
+        self.drop_path = DropPath(drop_path_rate)
+
+        self.activation = F.gelu
+
+    def forward(self, src, *args, **kwargs):
+        src = src + self.drop_path(self.self_attn(self.pre_norm(src)))
+        src = self.norm1(src)
+        src2 = self.linear2(self.dropout1(self.activation(self.linear1(src))))
+        src = src + self.drop_path(self.dropout2(src2))
+        return src
 
 
 @BACKBONES.register_module()
@@ -118,27 +121,38 @@ class ViViT2n2(nn.Module):
             self,
             graph_cfg,
             in_channels=3,
-            dim=9*36,
-            depth=4,
-            heads=9,
-            dim_head=36,
-            dropout=0.,
+            dim=256,
+            depth=5,
+            heads=4,
+            dropout=0.1,
             scale_dim=4,
             max_position_embeddings_1=26,
-            max_position_embeddings_2=41,
+            max_position_embeddings_2=65,
+            attention_dropout=0.1,
+            stochastic_depth_rate=0.1,
     ):
         super().__init__()
 
         graph = Graph(**graph_cfg)
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
         self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
+        self.norm = nn.LayerNorm(dim)
+        dpr = [x.item() for x in torch.linspace(0, stochastic_depth_rate, depth)]
+        dpr_iter = iter(dpr)
+        self.Transformer = nn.ModuleList([])
+        for _ in range(depth):
+            self.Transformer.append(nn.ModuleList([
+                TransformerEncoderLayer(d_model=dim, nhead=heads,
+                                        dim_feedforward=dim * scale_dim, dropout=dropout,
+                                        attention_dropout=attention_dropout, drop_path_rate=next(dpr_iter))
+            ]))
 
         self.enc_pe_1 = PositionalEncoding(dim, dropout, max_position_embeddings_2)
         self.enc_pe_2 = PositionalEncoding(dim, dropout, max_position_embeddings_1)
         self.space_token = nn.Parameter(torch.randn(1, 1, dim))
-        self.space_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
+        # self.space_transformer = self.Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
         self.temporal_token = nn.Parameter(torch.randn(1, 1, dim))
-        self.temporal_transformer = Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
+        # self.temporal_transformer = self.Transformer(dim, depth, heads, dim_head, dim * scale_dim, dropout)
         self.to_embedding = nn.Linear(in_channels, dim)
 
         self.init_weights()
@@ -152,9 +166,11 @@ class ViViT2n2(nn.Module):
 
     def forward(self, x):
         N, M, T, V, C = x.size()
-        x = x.permute(0, 1, 3, 4, 2).contiguous()
-        x = self.data_bn(x.view(N * M, V * C, T))
-        x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M * V, T, C)
+        # x = x.permute(0, 1, 3, 4, 2).contiguous()
+        # x = self.data_bn(x.view(N * M, V * C, T))
+        # x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M * V, T, C)
+
+        x = x.permute(0, 1, 3, 2, 4).contiguous().view(N * M * V, T, C)
 
         # 维度从 N * M * V, T, C 变为 N * M * V, T, dim
         x = self.to_embedding(x)
@@ -169,7 +185,9 @@ class ViViT2n2(nn.Module):
         x_input = self.enc_pe_1(x)
 
         # 输出为 N * M * V, 1+T, dim
-        x = self.space_transformer(x_input)
+        x = self.Transformer(x_input)
+
+        x = self.norm(x)
 
         # 提取cls，x维度变为 N * M * V，dim
         x = x[:, 0].view(N * M, V, -1)
@@ -183,13 +201,14 @@ class ViViT2n2(nn.Module):
         x = self.enc_pe_2(x)
 
         # 输出为 N * M, 1+V, dim
-        x = self.temporal_transformer(x)
+        x = self.Transformer(x)
+
+        x = self.norm(x)
 
         # 输出为 N, M, dim
         x = x[:, 0].view(N, M, -1)
 
         return x
-
 
 # x = torch.randn(2,6,1,2,3)
 # model = ViViT2()

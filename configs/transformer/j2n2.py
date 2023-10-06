@@ -7,24 +7,25 @@ model = dict(
         type='ViViT2n2',
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
         max_position_embeddings_1=26,  # 25*40+1=1001
-        max_position_embeddings_2=49,
+        max_position_embeddings_2=65,
         # dropout=0.1,
-        depth=10,
-        dim=9*36,
+        dim=256,
     ),
-    cls_head=dict(type='vit2Head', num_classes=60, in_channels=9*36))
+    cls_head=dict(type='vit2Head', num_classes=60, in_channels=256))
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
-clip_len = 48
+
+clip_len = 64
+mode = 'zero'
 train_pipeline = [
     dict(type='PreNormalize3D'),
-    dict(type='RandomScale', scale=0.1),
-    dict(type='RandomRot'),
-    # dict(type='RandomRot', theta=0.2),
+    # dict(type='RandomScale', scale=0.1),
+    # dict(type='RandomRot'),
+    dict(type='RandomRot', theta=0.2),
     dict(type='GenSkeFeat', dataset='nturgb+d', feats=['j']),
     # dict(type='STTSample', clip_len=56, p_interval=(0.5, 1)),
-    dict(type='UniformSample', clip_len=clip_len),
+    dict(type='UniformSample', clip_len=clip_len, mode=mode),
     dict(type='PoseDecode'),
     dict(type='FormatGCNInput', num_person=2),
     dict(type='Collect', keys=['keypoint', 'label'], meta_keys=[]),
@@ -36,7 +37,7 @@ val_pipeline = [
     # dict(type='STTSample', clip_len=56, p_interval=(0.5, 1)),
     dict(type='UniformSample', clip_len=clip_len, num_clips=1),
     dict(type='PoseDecode'),
-    dict(type='FormatGCNInput', num_person=2),
+    dict(type='FormatGCNInput', num_person=2, mode=mode),
     dict(type='Collect', keys=['keypoint', 'label'], meta_keys=[]),
     dict(type='ToTensor', keys=['keypoint'])
 ]
@@ -46,19 +47,19 @@ test_pipeline = [
     # dict(type='STTSample', clip_len=56, p_interval=(0.5, 1)),
     dict(type='UniformSample', clip_len=clip_len, num_clips=10),
     dict(type='PoseDecode'),
-    dict(type='FormatGCNInput', num_person=2),
+    dict(type='FormatGCNInput', num_person=2, mode=mode),
     dict(type='Collect', keys=['keypoint', 'label'], meta_keys=[]),
     dict(type='ToTensor', keys=['keypoint'])
 ]
 data = dict(
-    videos_per_gpu=16,
+    videos_per_gpu=32,
     workers_per_gpu=8,
     test_dataloader=dict(videos_per_gpu=1),
-    train=dict(
-        type='RepeatDataset',
-        times=2,
-        dataset=dict(type=dataset_type, ann_file=ann_file, pipeline=train_pipeline, split='xsub_train')),
-    # train=dict(type=dataset_type, ann_file=ann_file, pipeline=train_pipeline, split='xsub_train'),
+    # train=dict(
+    #     type='RepeatDataset',
+    #     times=2,
+    #     dataset=dict(type=dataset_type, ann_file=ann_file, pipeline=train_pipeline, split='xsub_train')),
+    train=dict(type=dataset_type, ann_file=ann_file, pipeline=train_pipeline, split='xsub_train'),
     val=dict(type=dataset_type, ann_file=ann_file, pipeline=val_pipeline, split='xsub_val'),
     test=dict(type=dataset_type, ann_file=ann_file, pipeline=test_pipeline, split='xsub_val'))
 
@@ -79,14 +80,14 @@ lr_config = dict(
     warmup_ratio=1.0 / 100,
     min_lr_ratio=1e-6)
 
-total_epochs = 60
+total_epochs = 80
 checkpoint_config = dict(interval=1)
-evaluation = dict(interval=1, metrics=['top_k_accuracy'])
+evaluation = dict(interval=4, metrics=['top_k_accuracy'])
 log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='WandbLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j2/9.26-tm2-3'
-
+work_dir = './work_dirs/transformer/j2/10.11-tm2-1'
+find_unused_parameters = False
 auto_resume = False
 seed = 88
