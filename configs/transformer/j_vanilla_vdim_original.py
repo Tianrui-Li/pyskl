@@ -6,11 +6,12 @@ model = dict(
     backbone=dict(
         type='LST_original',
         hidden_dim=128,
-        dim_mul_layers=(4, 7),
+        dim_mul_layers=(2, 4),
         temporal_pooling=True,
         sliding_window=False,
         norm_first=True,
         num_heads=8,
+        depth=8,
         # stride1=3,
         # kernel_size1=5,
         # graph_cfg=dict(layout='nturgb+d', mode='spatial'),
@@ -79,7 +80,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='W
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/10.11-3'
+work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/10.11-4'
 find_unused_parameters = False
 auto_resume = False
 seed = 88
