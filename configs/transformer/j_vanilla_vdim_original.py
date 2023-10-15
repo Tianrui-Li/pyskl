@@ -5,14 +5,13 @@ model = dict(
     type='RecognizerGCN',
     backbone=dict(
         type='LST_original',
-        hidden_dim=128,
-        dim_mul_layers=(2, 4),
+        hidden_dim=64,
+        dim_mul_layers=(2, 4, 7),
         temporal_pooling=True,
         sliding_window=False,
         norm_first=True,
         num_heads=8,
-        depth=8,
-        dropout_rate=0.1,
+        depth=10,
         # stride1=3,
         # kernel_size1=5,
         # graph_cfg=dict(layout='nturgb+d', mode='spatial'),
@@ -76,12 +75,12 @@ lr_config = dict(
     min_lr_ratio=1e-6)
 total_epochs = 100
 checkpoint_config = dict(interval=1)
-evaluation = dict(interval=2, metrics=['top_k_accuracy'])
+evaluation = dict(interval=4, metrics=['top_k_accuracy'])
 log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='WandbLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/10.11-6'
+work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/10.11-4'
 find_unused_parameters = False
 auto_resume = False
 seed = 88
