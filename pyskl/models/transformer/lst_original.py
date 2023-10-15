@@ -77,7 +77,6 @@ class Attention(nn.Module):
 
         if dim == 64:
             self.group_size = (64, 25)
-            self.num_heads = 1
         elif dim == 128:
             self.group_size = (32, 25)
         elif dim == 256:
@@ -85,7 +84,7 @@ class Attention(nn.Module):
         elif dim == 512:
             self.group_size = (8, 25)
 
-        # self.num_heads = num_heads
+        self.num_heads = num_heads
 
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim ** -0.5
