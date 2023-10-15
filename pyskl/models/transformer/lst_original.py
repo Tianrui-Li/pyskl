@@ -85,7 +85,6 @@ class Attention(nn.Module):
             self.group_size = (8, 25)
 
         self.num_heads = num_heads
-
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim ** -0.5
         self.position_bias = position_bias
