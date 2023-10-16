@@ -77,16 +77,16 @@ class Attention(nn.Module):
 
         if dim == 64:
             self.group_size = (64, 25)
-            self.num_heads = 1
+            self.num_heads = 2
         elif dim == 128:
             self.group_size = (32, 25)
-            self.num_heads = 2
+            self.num_heads = 4
         elif dim == 256:
             self.group_size = (16, 25)
-            self.num_heads = 4
+            self.num_heads = 8
         elif dim == 512:
             self.group_size = (8, 25)
-            self.num_heads = 8
+            self.num_heads = 16
 
         # self.num_heads = num_heads
         head_dim = dim // num_heads
