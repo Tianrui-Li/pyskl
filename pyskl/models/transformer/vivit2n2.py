@@ -121,9 +121,9 @@ class ViViT2n2(nn.Module):
             self,
             graph_cfg,
             in_channels=3,
-            dim=256,
-            depth=5,
-            heads=4,
+            dim=512,
+            depth=8,
+            heads=8,
             dropout=0.1,
             scale_dim=4,
             max_position_embeddings_1=26,
@@ -150,7 +150,7 @@ class ViViT2n2(nn.Module):
 
         self.blocks = nn.ModuleList([
             TransformerEncoderLayer(d_model=dim, nhead=heads,
-                                    dim_feedforward=dim * scale_dim, dropout=dropout,
+                                    dim_feedforward=dim * scale_dim, dropout=0.,
                                     attention_dropout=attention_dropout, drop_path_rate=next(dpr_iter))
             for _ in range(depth)])
 

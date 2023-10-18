@@ -10,7 +10,7 @@ model = dict(
         max_position_embeddings_2=65,
         # dropout=0.1,
     ),
-    cls_head=dict(type='vit2Head', num_classes=60, in_channels=256))
+    cls_head=dict(type='vit2Head', num_classes=60, in_channels=512))
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
@@ -81,12 +81,12 @@ lr_config = dict(
 
 total_epochs = 80
 checkpoint_config = dict(interval=1)
-evaluation = dict(interval=4, metrics=['top_k_accuracy'])
+evaluation = dict(interval=2, metrics=['top_k_accuracy'])
 log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='WandbLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/transformer/j2/10.11-tm2-2'
+work_dir = './work_dirs/transformer/j2/10.18-tm2-1'
 
 auto_resume = False
 seed = 88
