@@ -22,7 +22,6 @@ class FeedForward(nn.Module):
     def __init__(self, dim, hidden_dim, dropout=0.):
         super().__init__()
         self.net = nn.Sequential(
-            nn.LayerNorm(dim),
             nn.Linear(dim, hidden_dim),
             nn.GELU(),
             nn.Dropout(dropout),
@@ -130,9 +129,9 @@ class ViViT3(nn.Module):
 
     def __init__(self,
                  graph_cfg,
-                 dim=576,
-                 depth=4,
-                 heads=9,
+                 dim=512,
+                 depth=8,
+                 heads=8,
                  dim_head=64,
                  in_channels=3,
                  emb_dropout=0.,
@@ -170,7 +169,7 @@ class ViViT3(nn.Module):
         """ x is a video: (b, C, T, H, W) """
         N, M, T, V, C = x.size()
         x = x.permute(0, 1, 3, 4, 2).contiguous()
-        x = self.data_bn(x.view(N * M, V * C, T))
+        # x = self.data_bn(x.view(N * M, V * C, T))
         x = x.view(N, M, V, C, T).permute(0, 1, 4, 3, 2).contiguous().view(N * M, T, V, C)
 
         tokens = self.to_embedding(x)
