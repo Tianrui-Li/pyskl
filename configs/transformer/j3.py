@@ -72,6 +72,6 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='W
 # runtime settings
 log_level = 'INFO'
 work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/10.23-tm3-1'
-find_unused_parameters = False
+find_unused_parameters = True
 auto_resume = False
 seed = 88
