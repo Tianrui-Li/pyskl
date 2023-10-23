@@ -5,7 +5,7 @@ model = dict(
     type='RecognizerGCN',
     backbone=dict(
         type='ViViT3',
-        graph_cfg=dict(layout='nturgb+d', mode='spatial'),
+        # graph_cfg=dict(layout='nturgb+d', mode='spatial'),
     ),
     cls_head=dict(type='vit2Head', num_classes=60, in_channels=512))
 

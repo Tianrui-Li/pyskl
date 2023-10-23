@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch import einsum
 
 from einops import rearrange
-from ...utils import Graph
+# from ...utils import Graph
 from ..builder import BACKBONES
 
 
@@ -128,7 +128,7 @@ class ViViT3(nn.Module):
     """ Model-3 backbone of ViViT """
 
     def __init__(self,
-                 graph_cfg,
+                 # graph_cfg,
                  dim=512,
                  depth=8,
                  heads=8,
@@ -141,9 +141,9 @@ class ViViT3(nn.Module):
                  max_position_embeddings_2=64,
                  ):
         super().__init__()
-        graph = Graph(**graph_cfg)
-        A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
-        self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
+        # graph = Graph(**graph_cfg)
+        # A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
+        # self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
 
         self.to_embedding = nn.Linear(in_channels, dim)
 
