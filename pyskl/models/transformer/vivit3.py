@@ -158,7 +158,7 @@ class ViViT3(nn.Module):
         self.dropout = nn.Dropout(emb_dropout)
 
         self.transformer = FSATransformerEncoder(dim, depth, heads, dim_head, dim * scale_dim, dropout)
-        self.to_latent = nn.Identity()
+        # self.to_latent = nn.Identity()
 
         self.init_weights()  # initialization
 
