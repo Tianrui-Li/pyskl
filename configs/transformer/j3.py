@@ -53,7 +53,8 @@ data = dict(
     test=dict(type=dataset_type, ann_file=ann_file, pipeline=test_pipeline, split='xsub_val'))
 
 # optimizer
-optimizer = dict(type='AdamW', lr=0.0001, weight_decay=0.01)
+# optimizer = dict(type='AdamW', lr=0.0001, weight_decay=0.01)
+optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005, nesterov=True)
 optimizer_config = dict(grad_clip=dict(max_norm=3.0, norm_type=2))
 # learning policy
 # lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
@@ -71,7 +72,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='W
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/10.23-tm3-1'
+work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/10.23-tm3-2'
 find_unused_parameters = True
 auto_resume = False
 seed = 88
