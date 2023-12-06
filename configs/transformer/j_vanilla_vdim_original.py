@@ -23,7 +23,7 @@ ann_file = 'data/nturgbd/ntu60_3danno.pkl'
 
 clip_len = 32
 sample_rate = 3
-mode = 'copy'
+mode = 'zero'
 train_pipeline = [
     dict(type='PreNormalize3D'),
     dict(type='RandomScale', scale=0.1),
