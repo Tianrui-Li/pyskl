@@ -250,18 +250,18 @@ def sliding_window_attention_mask(
     return mask
 
 
-def weights_init(m):
-    classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
-        if hasattr(m, 'weight'):
-            nn.init.kaiming_normal_(m.weight, mode='fan_out')
-        if hasattr(m, 'bias') and m.bias is not None and isinstance(m.bias, torch.Tensor):
-            nn.init.constant_(m.bias, 0)
-    elif classname.find('BatchNorm') != -1:
-        if hasattr(m, 'weight') and m.weight is not None:
-            m.weight.data.normal_(1.0, 0.02)
-        if hasattr(m, 'bias') and m.bias is not None:
-            m.bias.data.fill_(0)
+# def weights_init(m):
+#     classname = m.__class__.__name__
+#     if classname.find('Conv') != -1:
+#         if hasattr(m, 'weight'):
+#             nn.init.kaiming_normal_(m.weight, mode='fan_out')
+#         if hasattr(m, 'bias') and m.bias is not None and isinstance(m.bias, torch.Tensor):
+#             nn.init.constant_(m.bias, 0)
+#     elif classname.find('BatchNorm') != -1:
+#         if hasattr(m, 'weight') and m.weight is not None:
+#             m.weight.data.normal_(1.0, 0.02)
+#         if hasattr(m, 'bias') and m.bias is not None:
+#             m.bias.data.fill_(0)
 
 
 class TemporalConv(nn.Module):
@@ -503,7 +503,7 @@ class LST_original(nn.Module):
                 nb_size = nb_size + (dim_in == dim_out)
                 self.neighborhood_sizes.append(nb_size)
 
-        self.norm = (nn.LayerNorm(hidden_dims[-1][-1], eps=layer_norm_eps)
+        self.norm = (nn.LayerNorm(512, eps=layer_norm_eps)
                      if norm_first else None)
 
         self.init_weights()
