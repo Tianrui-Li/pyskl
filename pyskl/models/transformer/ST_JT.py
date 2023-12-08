@@ -1,18 +1,12 @@
-"""Locality-aware Spatiotemporal Transformer
-This implementation is based on Pytorch transformer version.
-"""
 
 import torch
+import math
 from torch import nn, einsum
 from einops import rearrange, pack
-import math
-# from ...utils import Graph
-
 from ..builder import BACKBONES
-from .utils import PositionalEncoding
 from ..gcns import unit_tcn
 import torch.nn.functional as F
-from rotary_embedding_torch import RotaryEmbedding
+# from ...utils import Graph
 
 
 class DynamicPosBias(nn.Module):
@@ -48,17 +42,16 @@ class DynamicPosBias(nn.Module):
             pos = self.pos3(self.pos2(self.pos1(self.pos_proj(biases))))
         return pos
 
-    def flops(self, N):
-        flops = N * 2 * self.pos_dim
-        flops += N * self.pos_dim * self.pos_dim
-        flops += N * self.pos_dim * self.pos_dim
-        flops += N * self.pos_dim * self.num_heads
-        return flops
+    # def flops(self, N):
+    #     flops = N * 2 * self.pos_dim
+    #     flops += N * self.pos_dim * self.pos_dim
+    #     flops += N * self.pos_dim * self.pos_dim
+    #     flops += N * self.pos_dim * self.num_heads
+    #     return flops
 
 
 class Attention(nn.Module):
-    r""" Multi-head self attention module with dynamic position bias.
-
+    """ Multi-head self attention module with dynamic position bias.
     Args:
         dim (int): Number of input channels.
         group_size (tuple[int]): The height and width of the group.
@@ -68,10 +61,8 @@ class Attention(nn.Module):
         attn_drop (float, optional): Dropout ratio of attention weight. Default: 0.0
         proj_drop (float, optional): Dropout ratio of output. Default: 0.0
     """
-
     def __init__(self, dim, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.,
                  position_bias=True):
-
         super().__init__()
         self.dim = dim
 
@@ -87,8 +78,8 @@ class Attention(nn.Module):
         elif dim == 512:
             self.group_size = (8, 25)
             self.num_heads = 16
-
         # self.num_heads = num_heads
+
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim ** -0.5
         self.position_bias = position_bias
@@ -184,7 +175,6 @@ class TransformerEncoderLayer(nn.Module):
     Inspired by torch.nn.TransformerEncoderLayer and
     rwightman's timm package.
     """
-
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
                  attention_dropout=0.1, drop_path_rate=0.1):
         super().__init__()
@@ -192,15 +182,12 @@ class TransformerEncoderLayer(nn.Module):
         self.pre_norm = nn.LayerNorm(d_model)
         self.self_attn = Attention(dim=d_model, num_heads=nhead,
                                    attn_drop=attention_dropout, proj_drop=dropout)
-
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout1 = nn.Dropout(dropout)
         self.norm1 = nn.LayerNorm(d_model)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
         self.dropout2 = nn.Dropout(dropout)
-
         self.drop_path = DropPath(drop_path_rate)
-
         self.activation = F.gelu
 
     def forward(self, src, *args, **kwargs):
@@ -409,7 +396,7 @@ class TemporalPooling(nn.Module):
 
 
 @BACKBONES.register_module()
-class LST_original(nn.Module):
+class ST_JT(nn.Module):
     """Locality-aware Spatial-Temporal Transformer
     """
 
