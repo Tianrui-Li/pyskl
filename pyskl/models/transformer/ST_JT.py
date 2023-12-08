@@ -155,7 +155,6 @@ class Attention(nn.Module):
         return x
 
 
-
 class DropPath(nn.Module):
     def __init__(self, drop_prob=None):
         super().__init__()
