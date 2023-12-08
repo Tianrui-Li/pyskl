@@ -8,6 +8,7 @@ from ..gcns import unit_tcn
 from ..builder import BACKBONES
 from rotary_embedding_torch import RotaryEmbedding
 
+
 # from ...utils import Graph
 
 
@@ -63,6 +64,7 @@ class Attention(nn.Module):
         attn_drop (float, optional): Dropout ratio of attention weight. Default: 0.0
         proj_drop (float, optional): Dropout ratio of output. Default: 0.0
     """
+
     def __init__(self, dim, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.,
                  position_bias=True):
         super().__init__()
