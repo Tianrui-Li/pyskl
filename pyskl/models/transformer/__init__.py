@@ -10,4 +10,8 @@ from .vivit1nn import ViViT1nn  # noqa: F401, F403
 from .crossformer import CrossFormer  # noqa: F401, F403
 from .lst import LST  # noqa: F401, F403
 from .lst_original import LST_original  # noqa: F401, F403
+from .ST_JT import ST_JT  # noqa: F401, F403
+
+
+
 
