@@ -4,7 +4,7 @@ wandb.init(project='ViViT2')
 model = dict(
     type='RecognizerGCN',
     backbone=dict(
-        type='ST_JT',
+        type='ST_ST',
     ),
     cls_head=dict(type='TRHead', num_classes=60, in_channels=512, dropout=0.))
 
