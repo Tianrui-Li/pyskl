@@ -109,7 +109,7 @@ class ST_ST(nn.Module):
             # graph_cfg,
             in_channels=3,
             hidden_dim=64,
-            depth=5,  # 10//2=5
+            depth=10,
             num_heads=8,
             mlp_ratio=4,
             attention_dropout=0.1,
@@ -129,8 +129,9 @@ class ST_ST(nn.Module):
 
         self.embd_layer = nn.Linear(in_channels, hidden_dim)
         self.dim = hidden_dim * num_heads
+        self.depth = depth
 
-        dpr1 = [x.item() for x in torch.linspace(0, stochastic_depth_rate, depth)]
+        dpr1 = [x.item() for x in torch.linspace(0, stochastic_depth_rate, self.depth)]
         dpr_iter1 = iter(dpr1)
 
         # Transformer Encoder
@@ -138,16 +139,16 @@ class ST_ST(nn.Module):
             TransformerEncoderLayer(d_model=self.dim, nhead=num_heads,
                                     dim_feedforward=self.dim * mlp_ratio, dropout=dropout_rate,
                                     attention_dropout=attention_dropout, drop_path_rate=next(dpr_iter1))
-            for _ in range(depth)])
+            for _ in range(self.depth)])
 
-        dpr2 = [x.item() for x in torch.linspace(0, stochastic_depth_rate, depth)]
+        dpr2 = [x.item() for x in torch.linspace(0, stochastic_depth_rate, self.depth)]
         dpr_iter2 = iter(dpr2)
 
         self.temporal_blocks = nn.ModuleList([
             TransformerEncoderLayer(d_model=self.dim, nhead=num_heads,
                                     dim_feedforward=self.dim * mlp_ratio, dropout=dropout_rate,
                                     attention_dropout=attention_dropout, drop_path_rate=next(dpr_iter2))
-            for _ in range(depth)])
+            for _ in range(self.depth)])
 
         self.enc_pe_1 = PositionalEncoding(self.dim, dropout_rate, max_position_embeddings_2)
         self.enc_pe_2 = PositionalEncoding(self.dim, dropout_rate, max_position_embeddings_1)
@@ -155,35 +156,19 @@ class ST_ST(nn.Module):
         self.temporal_token = nn.Parameter(torch.randn(1, 1, self.dim))
         self.to_embedding = nn.Linear(in_channels, self.dim)
 
-        self.norm = (nn.LayerNorm(512, eps=layer_norm_eps)
+        self.norm = (nn.LayerNorm(self.dim, eps=layer_norm_eps)
                      if norm_first else None)
 
         self.init_weights()
 
-    # def init_weights(self):
-    #     for p in self.parameters():
-    #         if p.dim() > 1:
-    #             nn.init.xavier_uniform_(p)
-
     def init_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                if hasattr(m, 'weight'):
-                    nn.init.kaiming_normal_(m.weight, mode='fan_out')
-                if hasattr(m, 'bias') and m.bias is not None and isinstance(m.bias, torch.Tensor):
-                    nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
-                if hasattr(m, 'weight') and m.weight is not None:
-                    m.weight.data.normal_(1.0, 0.02)
-                if hasattr(m, 'bias') and m.bias is not None:
-                    m.bias.data.fill_(0)
-            elif isinstance(m, nn.Linear):
-                nn.init.trunc_normal_(m.weight, std=.02)
-                if isinstance(m, nn.Linear) and m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.LayerNorm):
-                nn.init.constant_(m.bias, 0)
-                nn.init.constant_(m.weight, 1.0)
+        if self.space_token is not None:
+            nn.init.trunc_normal_(self.space_token, std=.02)
+        if self.temporal_token is not None:
+            nn.init.trunc_normal_(self.temporal_token, std=.02)
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
 
     def forward(self, x):
         N, M, T, V, C = x.size()
@@ -207,8 +192,8 @@ class ST_ST(nn.Module):
         x = self.enc_pe_1(x)
 
         # 输出为 N * M * V, 1+T, dim
-        for blk in self.temporal_blocks:
-            x = blk(x)
+        for blk1 in self.temporal_blocks:
+            x = blk1(x)
 
         if self.norm is not None:
             x = self.norm(x)
@@ -225,13 +210,13 @@ class ST_ST(nn.Module):
         x = self.enc_pe_2(x)
 
         # 输出为 N * M, 1+V, dim
-        for blk in self.spatial_blocks:
-            x = blk(x)
+        for blk2 in self.spatial_blocks:
+            x = blk2(x)
 
         if self.norm is not None:
             x = self.norm(x)
 
         # 输出为 N, M, dim
-        x = x[:, 0].view(N, M, 1, -1)
+        x = x[:, 0].view(N, M, -1)
 
         return x
