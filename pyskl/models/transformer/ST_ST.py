@@ -232,6 +232,6 @@ class ST_ST(nn.Module):
             x = self.norm(x)
 
         # 输出为 N, M, dim
-        x = x[:, 0].view(N, M, -1)
+        x = x[:, 0].view(N, M, 1, -1)
 
         return x
