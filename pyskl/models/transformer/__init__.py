@@ -11,6 +11,7 @@ from .crossformer import CrossFormer  # noqa: F401, F403
 from .lst import LST  # noqa: F401, F403
 from .lst_original import LST_original  # noqa: F401, F403
 from .ST_JT import ST_JT  # noqa: F401, F403
+from .ST_ST import ST_ST  # noqa: F401, F403
 
 
 
