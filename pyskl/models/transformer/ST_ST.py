@@ -138,13 +138,13 @@ class ST_ST(nn.Module):
             TransformerEncoderLayer(d_model=self.dim, nhead=num_heads,
                                     dim_feedforward=self.dim * mlp_ratio, dropout=dropout_rate,
                                     attention_dropout=attention_dropout, drop_path_rate=next(dpr_iter))
-            for _ in range(depth)])
+            for _1 in range(depth)])
 
         self.temporal_blocks = nn.ModuleList([
             TransformerEncoderLayer(d_model=self.dim, nhead=num_heads,
                                     dim_feedforward=self.dim * mlp_ratio, dropout=dropout_rate,
                                     attention_dropout=attention_dropout, drop_path_rate=next(dpr_iter))
-            for _ in range(depth)])
+            for _2 in range(depth)])
 
         self.enc_pe_1 = PositionalEncoding(self.dim, dropout_rate, max_position_embeddings_2)
         self.enc_pe_2 = PositionalEncoding(self.dim, dropout_rate, max_position_embeddings_1)
