@@ -1,9 +1,10 @@
-
 import torch
 from torch import nn, einsum
 from einops import rearrange
 from ..builder import BACKBONES
 import torch.nn.functional as F
+
+
 # from ...utils import Graph
 
 
@@ -22,8 +23,8 @@ class Attention(nn.Module):
     def forward(self, x):
         B, N, C = x.shape
 
-        qkv = self.qkv(x).chunk(3, dim = -1)
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = self.heads), qkv)
+        qkv = self.qkv(x).chunk(3, dim=-1)
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads), qkv)
 
         q = q * self.scale
 
@@ -79,6 +80,7 @@ class TransformerEncoderLayer(nn.Module):
     Inspired by torch.nn.TransformerEncoderLayer and
     rwightman's timm package.
     """
+
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
                  attention_dropout=0.1, drop_path_rate=0.1):
         super().__init__()
@@ -127,8 +129,8 @@ class ST_ST(nn.Module):
         # A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
         # self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
 
-        self.embd_layer = nn.Linear(in_channels, hidden_dim)
         self.dim = hidden_dim * num_heads
+        self.to_embedding = nn.Linear(in_channels, self.dim)
         self.depth = depth
 
         dpr1 = [x.item() for x in torch.linspace(0, stochastic_depth_rate, self.depth)]
@@ -154,7 +156,6 @@ class ST_ST(nn.Module):
         self.enc_pe_2 = PositionalEncoding(self.dim, dropout_rate, max_position_embeddings_1)
         self.space_token = nn.Parameter(torch.randn(1, 1, self.dim))
         self.temporal_token = nn.Parameter(torch.randn(1, 1, self.dim))
-        self.to_embedding = nn.Linear(in_channels, self.dim)
 
         self.norm = (nn.LayerNorm(self.dim, eps=layer_norm_eps)
                      if norm_first else None)
