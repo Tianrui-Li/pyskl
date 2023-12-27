@@ -95,9 +95,14 @@ data = dict(
     val=dict(type=dataset_type, ann_file=ann_file, pipeline=val_pipeline, split='xsub_val'),
     test=dict(type=dataset_type, ann_file=ann_file, pipeline=test_pipeline, split='xsub_val'))
 
+# # optimizer
+# optimizer = dict(type='AdamW', lr=0.0001, weight_decay=0.01)
+# optimizer_config = dict(grad_clip=dict(max_norm=3.0, norm_type=2))
+
 # optimizer
-optimizer = dict(type='AdamW', lr=0.0001, weight_decay=0.01)
-optimizer_config = dict(grad_clip=dict(max_norm=3.0, norm_type=2))
+optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=0.0, nesterov=True)
+optimizer_config = dict(grad_clip=dict(max_norm=1.0, norm_type=2))
+
 # learning policy
 # lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 lr_config = dict(
@@ -114,7 +119,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='W
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/12.8-ST_JT-basic2'
+work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/12.31-ST_JT-SGD-1'
 find_unused_parameters = False
 auto_resume = False
 seed = 88

@@ -252,7 +252,7 @@ class ST_JT(nn.Module):
             dim_mul_layers=(4, 7),
             dim_mul_factor=2,
             depth=10,
-            num_heads=4,
+            num_heads=8,
             mlp_ratio=4,
             norm_first=False,
             attention_dropout=0.1,
