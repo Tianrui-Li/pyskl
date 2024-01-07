@@ -100,7 +100,7 @@ data = dict(
 # optimizer_config = dict(grad_clip=dict(max_norm=3.0, norm_type=2))
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=0.0, nesterov=True)
+optimizer = dict(type='SGD', lr=0.05, momentum=0.9, weight_decay=0.0, nesterov=True)
 optimizer_config = dict(grad_clip=dict(max_norm=1.0, norm_type=2))
 
 # learning policy
@@ -112,14 +112,14 @@ lr_config = dict(
     warmup_iters=10,
     warmup_ratio=1.0 / 100,
     min_lr_ratio=1e-6)
-total_epochs = 100
+total_epochs = 150
 checkpoint_config = dict(interval=1)
 evaluation = dict(interval=4, metrics=['top_k_accuracy'])
 log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='WandbLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/12.31-ST_JT-SGD-1'
+work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/1.7-ST_JT-SGD-2'
 find_unused_parameters = False
 auto_resume = False
 seed = 88
