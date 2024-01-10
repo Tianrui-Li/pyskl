@@ -12,7 +12,8 @@ from .lst import LST  # noqa: F401, F403
 from .lst_original import LST_original  # noqa: F401, F403
 from .ST_JT import ST_JT  # noqa: F401, F403
 from .ST_ST import ST_ST  # noqa: F401, F403
-from .ST_AttnST import ST_AttnST
-from .ST_AttnPT import ST_AttnPT
+from .ST_AttnST import ST_AttnST  # noqa: F401, F403
+from .ST_AttnPT import ST_AttnPT  # noqa: F401, F403
+from .ST_JT_org import ST_JT_org  # noqa: F401, F403
 
 
