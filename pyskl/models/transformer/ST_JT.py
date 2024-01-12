@@ -65,28 +65,28 @@ class Attention(nn.Module):
         super().__init__()
         self.dim = dim
 
-        # dim的变化
-        if dim == 64:
-            self.group_size = (64, 25)
-            self.num_heads = 2
-        elif dim == 128:
-            self.group_size = (32, 25)
-            self.num_heads = 4
-        elif dim == 256:
-            self.group_size = (16, 25)
-            self.num_heads = 8
-        elif dim == 512:
-            self.group_size = (8, 25)
-            self.num_heads = 16
-
-        # if dim == 128:
+        # # dim的变化
+        # if dim == 64:
         #     self.group_size = (64, 25)
-        # elif dim == 256:
+        #     self.num_heads = 2
+        # elif dim == 128:
         #     self.group_size = (32, 25)
-        # elif dim == 512:
+        #     self.num_heads = 4
+        # elif dim == 256:
         #     self.group_size = (16, 25)
-        #
-        # self.num_heads = num_heads
+        #     self.num_heads = 8
+        # elif dim == 512:
+        #     self.group_size = (8, 25)
+        #     self.num_heads = 16
+
+        if dim == 128:
+            self.group_size = (64, 25)
+        elif dim == 256:
+            self.group_size = (32, 25)
+        elif dim == 512:
+            self.group_size = (16, 25)
+
+        self.num_heads = num_heads
 
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim ** -0.5
@@ -130,7 +130,34 @@ class Attention(nn.Module):
         #                           requires_grad=True)
 
         A = A.sum(0)
-        self.outer = nn.Parameter(A.unsqueeze(0).expand(self.num_heads, -1, -1).repeat(1, self.group_size[0], self.group_size[0]), requires_grad=True)
+
+        # # 克隆8个A用来对应不同的头，学习参数8*25*25
+        # self.A_parameters = nn.ParameterList(
+        #     [nn.Parameter(A.clone().to("cuda"), requires_grad=True) for _ in range(self.num_heads)])
+        #
+        # # 针对不同头创建大对角矩阵，同一个头共享同一个A的权重
+        # # outer_block = []
+        # # for _ in A_parameters:
+        # #     outer_block.append(torch.block_diag(*[_] * self.group_size[0]))
+        #
+        # self.outer_blocks = []
+        # for param in self.A_parameters:
+        #     outer_block = []
+        #     for i in range(self.group_size[0]):
+        #         row = []
+        #         for j in range(self.group_size[0]):
+        #             if i == j:
+        #                 row.append(param)
+        #             else:
+        #                 row.append(torch.zeros_like(param))
+        #         outer_block.append(torch.cat(row, dim=1))
+        #     self.outer_blocks.append(torch.cat(outer_block, dim=0))
+        #
+        # self.outer = torch.stack(self.outer_blocks, dim=0).to("cuda")
+
+        self.big = torch.block_diag(*[A] * self.group_size[0])
+
+        self.outer = self.big.unsqueeze(0).repeat(self.num_heads, 1, 1).to("cuda")
 
     def forward(self, x, mask=None):
         """
@@ -291,6 +318,8 @@ class ST_JT(nn.Module):
         graph = Graph(**graph_cfg)
         # A.size() 3,25,25
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
+        # A = graph.A
+        # A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=True)
 
         # self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
 
@@ -339,30 +368,30 @@ class ST_JT(nn.Module):
 
         self.init_weights()
 
-    # def init_weights(self):
-    #     for p in self.parameters():
-    #         if p.dim() > 1:
-    #             nn.init.xavier_uniform_(p)
-
     def init_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                if hasattr(m, 'weight'):
-                    nn.init.kaiming_normal_(m.weight, mode='fan_out')
-                if hasattr(m, 'bias') and m.bias is not None and isinstance(m.bias, torch.Tensor):
-                    nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
-                if hasattr(m, 'weight') and m.weight is not None:
-                    m.weight.data.normal_(1.0, 0.02)
-                if hasattr(m, 'bias') and m.bias is not None:
-                    m.bias.data.fill_(0)
-            elif isinstance(m, nn.Linear):
-                nn.init.trunc_normal_(m.weight, std=.02)
-                if isinstance(m, nn.Linear) and m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.LayerNorm):
-                nn.init.constant_(m.bias, 0)
-                nn.init.constant_(m.weight, 1.0)
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
+
+    # def init_weights(self):
+    #     for m in self.modules():
+    #         if isinstance(m, nn.Conv2d):
+    #             if hasattr(m, 'weight'):
+    #                 nn.init.kaiming_normal_(m.weight, mode='fan_out')
+    #             if hasattr(m, 'bias') and m.bias is not None and isinstance(m.bias, torch.Tensor):
+    #                 nn.init.constant_(m.bias, 0)
+    #         elif isinstance(m, nn.BatchNorm2d):
+    #             if hasattr(m, 'weight') and m.weight is not None:
+    #                 m.weight.data.normal_(1.0, 0.02)
+    #             if hasattr(m, 'bias') and m.bias is not None:
+    #                 m.bias.data.fill_(0)
+    #         elif isinstance(m, nn.Linear):
+    #             nn.init.trunc_normal_(m.weight, std=.02)
+    #             if isinstance(m, nn.Linear) and m.bias is not None:
+    #                 nn.init.constant_(m.bias, 0)
+    #         elif isinstance(m, nn.LayerNorm):
+    #             nn.init.constant_(m.bias, 0)
+    #             nn.init.constant_(m.weight, 1.0)
 
     def forward(self, x):
         N, M, T, V, C = x.size()
