@@ -5,7 +5,7 @@ from einops import rearrange, pack
 from ..builder import BACKBONES
 from ..gcns import unit_tcn
 import torch.nn.functional as F
-from ...utils import Graph
+# from ...utils import Graph
 
 
 class DynamicPosBias(nn.Module):
@@ -60,7 +60,7 @@ class Attention(nn.Module):
         attn_drop (float, optional): Dropout ratio of attention weight. Default: 0.0
         proj_drop (float, optional): Dropout ratio of output. Default: 0.0
     """
-    def __init__(self, A, dim, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.,
+    def __init__(self, dim, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.,
                  position_bias=True):
         super().__init__()
         self.dim = dim
@@ -122,43 +122,6 @@ class Attention(nn.Module):
 
         self.softmax = nn.Softmax(dim=-1)
 
-        self.alpha = nn.Parameter(torch.zeros(1), requires_grad=True)
-
-        # A = A.sum(0)
-        # A[:, :] = 0
-        # self.outer = nn.Parameter(torch.stack([torch.eye(A.shape[-1]) for _ in range(self.num_heads)], dim=0),
-        #                           requires_grad=True)
-
-        A = A.sum(0)
-
-        # # 克隆8个A用来对应不同的头，学习参数8*25*25
-        # self.A_parameters = nn.ParameterList(
-        #     [nn.Parameter(A.clone().to("cuda"), requires_grad=True) for _ in range(self.num_heads)])
-        #
-        # # 针对不同头创建大对角矩阵，同一个头共享同一个A的权重
-        # # outer_block = []
-        # # for _ in A_parameters:
-        # #     outer_block.append(torch.block_diag(*[_] * self.group_size[0]))
-        #
-        # self.outer_blocks = []
-        # for param in self.A_parameters:
-        #     outer_block = []
-        #     for i in range(self.group_size[0]):
-        #         row = []
-        #         for j in range(self.group_size[0]):
-        #             if i == j:
-        #                 row.append(param)
-        #             else:
-        #                 row.append(torch.zeros_like(param))
-        #         outer_block.append(torch.cat(row, dim=1))
-        #     self.outer_blocks.append(torch.cat(outer_block, dim=0))
-        #
-        # self.outer = torch.stack(self.outer_blocks, dim=0).to("cuda")
-
-        self.big = torch.block_diag(*[A] * self.group_size[0])
-
-        self.outer = self.big.unsqueeze(0).repeat(self.num_heads, 1, 1).to("cuda")
-
     def forward(self, x, mask=None):
         """
         Args:
@@ -190,10 +153,7 @@ class Attention(nn.Module):
 
         attn = self.attn_drop(attn)
 
-        # x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
-
-        x = ((self.alpha * attn + self.outer) @ v).transpose(1, 2).reshape(B_, N, C)
-
+        x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
         return x
@@ -223,12 +183,12 @@ class TransformerEncoderLayer(nn.Module):
     Inspired by torch.nn.TransformerEncoderLayer and
     rwightman's timm package.
     """
-    def __init__(self, A, d_model, nhead, dim_feedforward=2048, dropout=0.1,
+    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
                  attention_dropout=0.1, drop_path_rate=0.1):
         super().__init__()
 
         self.pre_norm = nn.LayerNorm(d_model)
-        self.self_attn = Attention(A=A, dim=d_model, num_heads=nhead,
+        self.self_attn = Attention(dim=d_model, num_heads=nhead,
                                    attn_drop=attention_dropout, proj_drop=dropout)
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout1 = nn.Dropout(dropout)
@@ -240,8 +200,7 @@ class TransformerEncoderLayer(nn.Module):
 
     def forward(self, src, *args, **kwargs):
         src = src + self.drop_path(self.self_attn(self.pre_norm(src)))
-        src = self.norm1(src)
-        src2 = self.linear2(self.dropout1(self.activation(self.linear1(src))))
+        src2 = self.linear2(self.dropout1(self.activation(self.linear1(self.norm1(src)))))
         src = src + self.drop_path(self.dropout2(src2))
         return src
 
@@ -293,7 +252,7 @@ class ST_JT(nn.Module):
     """
     def __init__(
             self,
-            graph_cfg,
+            # graph_cfg,
             in_channels=3,
             hidden_dim=64,
             dim_mul_layers=(4, 7),
@@ -315,12 +274,8 @@ class ST_JT(nn.Module):
         super().__init__()
 
         # # Batch_normalization
-        graph = Graph(**graph_cfg)
-        # A.size() 3,25,25
-        A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
-        # A = graph.A
-        # A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=True)
-
+        # graph = Graph(**graph_cfg)
+        # A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
         # self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
 
         self.embd_layer = nn.Linear(in_channels, hidden_dim)
@@ -358,7 +313,7 @@ class ST_JT(nn.Module):
                 TemporalPooling(
                     dim_in, dim_out, kernel_size1, stride1,
                     pooling=temporal_pooling, with_cls=use_cls),
-                TransformerEncoderLayer(A=A, d_model=dim_out, nhead=num_heads,
+                TransformerEncoderLayer(d_model=dim_out, nhead=num_heads,
                                         dim_feedforward=dim_out * mlp_ratio, dropout=dropout_rate,
                                         attention_dropout=attention_dropout, drop_path_rate=next(dpr_iter))
             ]))

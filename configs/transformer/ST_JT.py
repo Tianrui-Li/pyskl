@@ -14,7 +14,7 @@ model = dict(
         depth=8,
         # stride1=3,
         # kernel_size1=5,
-        graph_cfg=dict(layout='nturgb+d', mode='spatial'),
+        # graph_cfg=dict(layout='nturgb+d', mode='spatial'),
     ),
     cls_head=dict(type='TRHead', num_classes=60, in_channels=512, dropout=0.))
 
@@ -121,7 +121,7 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook'), dict(type='W
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/1.9_ST_JT_new_attention_2'
+work_dir = './work_dirs/lst/ntu60_xsub_3dkp/j_vanilla_variable_dim/1.9_ST_JT_87_newFF'
 find_unused_parameters = False
 auto_resume = False
 seed = 88
