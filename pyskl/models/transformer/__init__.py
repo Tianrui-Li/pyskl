@@ -15,5 +15,6 @@ from .ST_ST import ST_ST  # noqa: F401, F403
 from .ST_AttnST import ST_AttnST  # noqa: F401, F403
 from .ST_AttnPT import ST_AttnPT  # noqa: F401, F403
 from .ST_JT_org import ST_JT_org  # noqa: F401, F403
+from .ST_JT_attention import ST_JT_Attention  # noqa: F401, F403
 
 
