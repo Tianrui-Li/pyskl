@@ -78,13 +78,23 @@ class Attention(nn.Module):
         # elif dim == 512:
         #     self.group_size = (8, 25)
         #     self.num_heads = 16
+        #
+        # if dim == 128:
+        #     self.group_size = (64, 25)
+        # elif dim == 256:
+        #     self.group_size = (32, 25)
+        # elif dim == 512:
+        #     self.group_size = (16, 25)
 
         if dim == 128:
             self.group_size = (64, 25)
+            self.num_heads = 4
         elif dim == 256:
             self.group_size = (32, 25)
+            self.num_heads = 8
         elif dim == 512:
             self.group_size = (16, 25)
+            self.num_heads = 16
 
         self.num_heads = num_heads
 
@@ -199,9 +209,15 @@ class TransformerEncoderLayer(nn.Module):
         self.activation = F.gelu
 
     def forward(self, src, *args, **kwargs):
+        # src = src + self.drop_path(self.self_attn(self.pre_norm(src)))
+        # src2 = self.linear2(self.dropout1(self.activation(self.linear1(self.norm1(src)))))
+        # src = src + self.drop_path(self.dropout2(src2))
+
         src = src + self.drop_path(self.self_attn(self.pre_norm(src)))
-        src2 = self.linear2(self.dropout1(self.activation(self.linear1(self.norm1(src)))))
+        src = self.norm1(src)
+        src2 = self.linear2(self.dropout1(self.activation(self.linear1(src))))
         src = src + self.drop_path(self.dropout2(src2))
+
         return src
 
 
