@@ -324,30 +324,30 @@ class ST_JT_org(nn.Module):
 
         self.init_weights()
 
-    def init_weights(self):
-        for p in self.parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
-
     # def init_weights(self):
-    #     for m in self.modules():
-    #         if isinstance(m, nn.Conv2d):
-    #             if hasattr(m, 'weight'):
-    #                 nn.init.kaiming_normal_(m.weight, mode='fan_out')
-    #             if hasattr(m, 'bias') and m.bias is not None and isinstance(m.bias, torch.Tensor):
-    #                 nn.init.constant_(m.bias, 0)
-    #         elif isinstance(m, nn.BatchNorm2d):
-    #             if hasattr(m, 'weight') and m.weight is not None:
-    #                 m.weight.data.normal_(1.0, 0.02)
-    #             if hasattr(m, 'bias') and m.bias is not None:
-    #                 m.bias.data.fill_(0)
-    #         elif isinstance(m, nn.Linear):
-    #             nn.init.trunc_normal_(m.weight, std=.02)
-    #             if isinstance(m, nn.Linear) and m.bias is not None:
-    #                 nn.init.constant_(m.bias, 0)
-    #         elif isinstance(m, nn.LayerNorm):
-    #             nn.init.constant_(m.bias, 0)
-    #             nn.init.constant_(m.weight, 1.0)
+    #     for p in self.parameters():
+    #         if p.dim() > 1:
+    #             nn.init.xavier_uniform_(p)
+
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                if hasattr(m, 'weight'):
+                    nn.init.kaiming_normal_(m.weight, mode='fan_out')
+                if hasattr(m, 'bias') and m.bias is not None and isinstance(m.bias, torch.Tensor):
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                if hasattr(m, 'weight') and m.weight is not None:
+                    m.weight.data.normal_(1.0, 0.02)
+                if hasattr(m, 'bias') and m.bias is not None:
+                    m.bias.data.fill_(0)
+            elif isinstance(m, nn.Linear):
+                nn.init.trunc_normal_(m.weight, std=.02)
+                if isinstance(m, nn.Linear) and m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.LayerNorm):
+                nn.init.constant_(m.bias, 0)
+                nn.init.constant_(m.weight, 1.0)
 
     def forward(self, x):
         N, M, T, V, C = x.size()
